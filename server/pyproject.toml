@@ -1,0 +1,14 @@
+[project]
+name = "server"
+version = "0.1.0"
+description = "Stock quote backend with pytdx"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pytdx>=1.13",
+    "akshare>=1.16.0",
+]
+
+[tool.uv]
+package = true

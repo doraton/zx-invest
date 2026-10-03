@@ -1,0 +1,29 @@
+.stock-chart-page {
+  padding: 24px;
+  background: #f0f2f5;
+  min-height: 100vh;
+}
+
+.stock-chart-page .ant-card {
+  border-radius: 8px;
+}
+
+.stock-chart-page .label {
+  font-size: 12px;
+  color: #999;
+  margin-right: 4px;
+}
+
+.stock-chart-page .value {
+  font-size: 16px;
+  font-weight: bold;
+  margin-left: 4px;
+}
+
+.stock-chart-page .up {
+  color: #ef6666;
+}
+
+.stock-chart-page .down {
+  color: #52c41a;
+}

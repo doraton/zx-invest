@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: server
+Version: 0.1.0
+Summary: Stock quote backend with pytdx
+Requires-Python: >=3.11
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: uvicorn[standard]>=0.30.0
+Requires-Dist: pytdx>=1.13
+Requires-Dist: akshare>=1.16.0

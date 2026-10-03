@@ -1,0 +1,77 @@
+.market-chart-page {
+  min-height: 100vh;
+  background: #0d1117;
+  padding: 16px;
+  color: #e6e6e6;
+}
+
+.market-chart-page .chart-card {
+  background: #0d1117;
+  border: 1px solid #1c2128;
+}
+
+.market-chart-page .chart-card .ant-card-head {
+  border-bottom-color: #1c2128;
+  color: #e6e6e6;
+}
+
+.market-chart-page .chart-card .ant-card-head-title {
+  color: #e6e6e6;
+}
+
+.market-chart-page .header-title {
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.market-chart-page .header-controls {
+  display: flex;
+  align-items: center;
+}
+
+.market-chart-page .quote-row {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #161b22;
+  border-radius: 6px;
+}
+
+.market-chart-page .quote-row .label {
+  display: inline-block;
+  min-width: 56px;
+  margin-right: 8px;
+  color: #8b949e;
+  font-size: 12px;
+}
+
+.market-chart-page .quote-row .value {
+  font-size: 16px;
+  font-weight: 600;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.market-chart-page .quote-row .value.up {
+  color: #ef5350;
+}
+
+.market-chart-page .quote-row .value.down {
+  color: #26a69a;
+}
+
+.market-chart-page .kline-container {
+  width: 100%;
+  height: 580px;
+  background: #0d1117;
+}
+
+.market-chart-page .error-tip {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(239, 83, 80, 0.1);
+  color: #ef5350;
+  border: 1px solid rgba(239, 83, 80, 0.3);
+  border-radius: 4px;
+  font-size: 13px;
+}
