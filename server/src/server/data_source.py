@@ -7,6 +7,7 @@
 
 通过 `DataSourceFactory` 注册 / 创建 / 列表。
 """
+import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from typing import Dict, List, Optional, Type
@@ -28,6 +29,7 @@ class QuoteData:
     close: float
     high: float
     low: float
+    prev_close: float = 0.0  # 昨收；与 close 之差 = 当天涨跌
 
 
 class DataSource(ABC):
@@ -37,6 +39,9 @@ class DataSource(ABC):
     @abstractmethod
     def get_index_kline(self, market: int = 0, code: str = "000001",
                         category: int = 4, count: int = 200) -> List[KLineData]: ...
+
+    @abstractmethod
+    def search_stocks(self, query: str, limit: int = 30) -> List[Dict[str, str]]: ...
 
 
 # ========================== AKShare + 新浪兜底 ==========================
@@ -48,6 +53,7 @@ class _SinaQuoteHelper:
     _FIELD_CLOSE = 1
     _FIELD_HIGH = 4
     _FIELD_LOW = 5
+    _FIELD_PREV_CLOSE = 2  # 昨收
 
     @classmethod
     def _to_sina_symbol(cls, code: str) -> str:
@@ -75,6 +81,7 @@ class _SinaQuoteHelper:
                 close=float(fields[cls._FIELD_CLOSE]),
                 high=float(fields[cls._FIELD_HIGH]),
                 low=float(fields[cls._FIELD_LOW]),
+                prev_close=float(fields[cls._FIELD_PREV_CLOSE]),
             )
         except (IndexError, ValueError) as e:
             import logging
@@ -184,6 +191,84 @@ class AkshareDataSource(DataSource):
             logging.warning(f"[AkshareDataSource] get_index_kline failed: {e}")
             return []
 
+    # ---------- A 股搜索 ----------
+
+    @staticmethod
+    def _add_market_prefix(raw_code: str) -> str:
+        """根据 6 位代码补 sh/sz 前缀。A 股规则：
+        - 6/9 开头 → 上交所 (sh)
+        - 0/3 开头 → 深交所 (sz)
+        - 4/8 开头 → 北交所 (bj)
+        """
+        if raw_code.startswith(('6', '9')):
+            return f"sh{raw_code}"
+        if raw_code.startswith(('0', '3')):
+            return f"sz{raw_code}"
+        if raw_code.startswith(('4', '8')):
+            return f"bj{raw_code}"
+        return f"sh{raw_code}"
+
+    @staticmethod
+    def _query_eastmoney_suggest(query: str, count: int = 30) -> List[Dict[str, str]]:
+        """调用东方财富 suggest 接口（GBK 编码）按代码或名称搜索。
+        返回仅含沪深 A 股（沪A/深A）的标准化字典列表。
+        """
+        import json
+        import logging
+        import urllib.parse
+        import urllib.request
+
+        q = (query or '').strip()
+        if not q:
+            return []
+
+        url = (
+            "https://searchadapter.eastmoney.com/api/suggest/get"
+            f"?input={urllib.parse.quote(q)}&type=14&count={max(count, 5)}"
+        )
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0',
+            'Referer': 'https://quote.eastmoney.com/',
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                # 响应 UTF-8（部分接口历史返回 GBK，但当前 suggest 端点是 UTF-8）
+                body = resp.read().decode('utf-8', errors='ignore')
+        except Exception as e:
+            logging.warning(f"[AkshareDataSource] _query_eastmoney_suggest failed: {e}")
+            return []
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as e:
+            logging.warning(f"[AkshareDataSource] suggest JSON decode failed: {e}")
+            return []
+        table = (payload.get('QuotationCodeTable') or {})
+        rows = table.get('Data') or []
+        result: List[Dict[str, str]] = []
+        for row in rows:
+            classify = str(row.get('Classify') or '')
+            # 只保留沪深 A 股，排除港股/债券/指数/基金/期货
+            if classify != 'AStock':
+                continue
+            raw = str(row.get('Code') or '').strip()
+            name = str(row.get('Name') or '').strip()
+            if len(raw) != 6 or not raw.isdigit():
+                continue
+            if not name:
+                continue
+            result.append({
+                'code': AkshareDataSource._add_market_prefix(raw),
+                'raw_code': raw,
+                'name': name,
+            })
+            if len(result) >= count:
+                break
+        return result
+
+    def search_stocks(self, query: str, limit: int = 30) -> List[Dict[str, str]]:
+        """按代码或名称搜索 A 股。空查询返回空列表。"""
+        return self._query_eastmoney_suggest(query, count=limit)
+
 
 # ========================== 通达信 tqcenter ==========================
 
@@ -285,6 +370,10 @@ class TqcenterDataSource(DataSource):
         except Exception:
             return []
 
+    def search_stocks(self, query: str, limit: int = 30) -> List[Dict[str, str]]:
+        # Tqcenter 暂无简易搜索入口，回退到 akshare 缓存
+        return AkshareDataSource().search_stocks(query, limit)
+
 
 # ========================== Pytdx ==========================
 
@@ -331,6 +420,10 @@ class PytdxDataSource(DataSource):
             return None
         finally:
             self._disconnect()
+
+    def search_stocks(self, query: str, limit: int = 30) -> List[Dict[str, str]]:
+        # Pytdx 暂无简易搜索入口，回退到 akshare 缓存
+        return AkshareDataSource().search_stocks(query, limit)
 
     def get_index_kline(self, market: int = 0, code: str = "000001",
                         category: int = 4, count: int = 200) -> List[KLineData]:

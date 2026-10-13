@@ -1,0 +1,448 @@
+/* antd 全局暗色覆盖（知行投资 SPA）。
+ *
+ * 为什么要单独一层：项目没有包 ConfigProvider 的 theme.darkAlgorithm，
+ * antd 用的是默认**浅色** design token，于是自选股页上的 Select / Radio.Button /
+ * Button / Tag / Input / Modal 全是白底黑字，跟页面 #22272e 的底色直接撞色
+ * （原来 ChartHeader.css 只覆盖了爱心按钮一个，其余控件都漏着）。
+ *
+ * 为什么改 CSS 变量而不是逐个组件写 background：antd v6 默认开启 cssVar，
+ * 组件样式全部写成 var(--ant-xxx)，所以覆盖这一层变量整套控件就都暗了，
+ * 以后 antd 升级也只需维护这一份清单。
+ *
+ * 为什么必须加 !important：antd 把变量声明在 `:where(.css-var-hashed).css-var-root`
+ * 上——`:where()` 特异性为 0，整条选择器只有 (0,1,0)，和这里的 :root 完全同级，
+ * 谁生效纯看 style 标签的先后顺序（antd 运行时注入 + Vite 的注入时机都不可控）。
+ * 自定义属性是允许写 !important 的，加上之后就跟加载顺序无关了。
+ *
+ * ═══════════════════════════════════════════════════════════════
+ * ⚠️ 但上面这段"重要"的结论只对**没有自己的 .css-var-root 声明**的元素成立。
+ * 2026-10-10 实测踩到的坑：整个 :root 块对 antd 组件基本是**死的**。
+ *
+ *   antd v6 给**每个组件的根节点**都挂了 .css-var-root，并在**那个元素自己身上**
+ *   声明全套 token。举 Modal 为例，实际渲染出来是：
+ *       .ant-modal.css-var-root { --ant-color-text: rgba(0,0,0,0.88); ... }
+ *   .ant-modal 有自己的声明，就按正常层叠盖掉了从 html 继承来的值——
+ *   :root 上那条 `--ant-color-text: #adbac7 !important` 只是让 **html 自己**
+ *   的计算值变了，对 .ant-modal 的子树没有任何约束力。
+ *
+ *   **!important 只有在两条声明命中同一个元素时才决胜负**，它不会给"继承来的值"
+ *   额外加权。所以凡是 antd 直接渲染出根节点的控件，:root 这层都压不住。
+ *
+ *   实证：Select / Radio.Button / Input / Tag 在这个项目里一直是暗色正常的，
+ *   靠的**不是**上面这批变量，而是文件后半段「显式规则兜底」里的 class 选择器。
+ *   而 Modal 当时只写了变量没写显式规则 → 标题和正文全是黑字压在 #2d333b 上。
+ *
+ * 约定：**新增/修改 antd 控件样式一律写后半段的显式 class 规则**；
+ * :root 这块保留是为了覆盖那些"自身不带 .css-var-root、纯靠继承"的元素，
+ * 别再往里加组件 token（--ant-modal-* / --ant-select-* / --ant-button-* 全都无效）。
+ * ═══════════════════════════════════════════════════════════════
+ */
+
+:root {
+  /* ── 底色层级：页面底 → 容器（Select/Input/Modal）→ 浮层（下拉面板/Tooltip） ── */
+  --ant-color-bg-base: #22272e !important;
+  --ant-color-bg-container: #2d333b !important;
+  --ant-color-bg-elevated: #373e47 !important;
+  --ant-color-bg-solid: #373e47 !important;
+  --ant-color-bg-spotlight: #444c56 !important;
+  --ant-color-bg-text-hover: rgba(255, 255, 255, 0.08) !important;
+  --ant-color-bg-text-active: rgba(255, 255, 255, 0.12) !important;
+  --ant-color-bg-mask: rgba(0, 0, 0, 0.65) !important;
+
+  /* ── 文字 ── */
+  --ant-color-text: #adbac7 !important;
+  --ant-color-text-heading: #ffffff !important;
+  --ant-color-text-label: #adbac7 !important;
+  --ant-color-text-secondary: #768390 !important;
+  --ant-color-text-tertiary: #6e7781 !important;
+  --ant-color-text-quaternary: #6e7781 !important;
+  --ant-color-text-placeholder: #6e7781 !important;
+  --ant-color-text-disabled: #545d68 !important;
+  /* 深底按钮上的文字（antd 默认是白色，个别场景会反过来当背景色用） */
+  --ant-color-text-light-solid: #22272e !important;
+  --ant-color-icon: #768390 !important;
+  --ant-color-icon-hover: #adbac7 !important;
+  --ant-color-white: #22272e !important;
+
+  /* ── 边框 / 分割线 ── */
+  --ant-color-border: #444c56 !important;
+  --ant-color-border-secondary: #373e47 !important;
+  --ant-color-border-disabled: #3d444d !important;
+  --ant-color-split: #373e47 !important;
+
+  /* ── 填充（hover / 选中底色） ── */
+  --ant-color-fill: rgba(255, 255, 255, 0.06) !important;
+  --ant-color-fill-secondary: rgba(255, 255, 255, 0.04) !important;
+  --ant-color-fill-tertiary: rgba(255, 255, 255, 0.02) !important;
+  --ant-color-fill-alter: rgba(255, 255, 255, 0.06) !important;
+  --ant-color-fill-content-hover: rgba(255, 255, 255, 0.08) !important;
+
+  /* ── 控件选中态（Radio.Group 按钮、Select 选项） ── */
+  --ant-control-item-bg-active: rgba(255, 255, 255, 0.1) !important;
+  --ant-control-item-bg-active-hover: rgba(255, 255, 255, 0.14) !important;
+  --ant-control-item-bg-hover: rgba(255, 255, 255, 0.06) !important;
+
+  /* ── 阴影：暗色下必须用黑色光晕，antd 默认阴影带浅色描边会在深底上发灰 ── */
+  --ant-box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55) !important;
+  --ant-box-shadow-secondary: 0 4px 16px rgba(0, 0, 0, 0.55) !important;
+  --ant-box-shadow-tertiary: 0 2px 8px rgba(0, 0, 0, 0.45) !important;
+  --ant-box-shadow-card: 0 4px 16px rgba(0, 0, 0, 0.45) !important;
+  --ant-box-shadow-popover-arrow: rgba(0, 0, 0, 0.55) !important;
+
+  /* ── Tooltip（ChartHeader 爱心之外，Modal 内也会用到） ── */
+  --ant-tooltip-overlay-color: #373e47 !important;
+  --ant-tooltip-arrow-background-color: #373e47 !important;
+
+  /* ── Select 专用 ── */
+  --ant-select-background-color: #2d333b !important;
+  --ant-select-border-color: #444c56 !important;
+  --ant-select-color: #adbac7 !important;
+  --ant-select-selector-bg: #2d333b !important;
+  --ant-select-hover-border-color: #545d68 !important;
+  --ant-select-active-border-color: #1677ff !important;
+  --ant-select-option-active-bg: #444c56 !important;
+  --ant-select-option-selected-bg: rgba(22, 119, 255, 0.2) !important;
+  --ant-select-option-selected-color: #ffffff !important;
+
+  /* ── Radio.Button（分组 tab、"筹码/基本面"） ── */
+  --ant-radio-button-bg: #2d333b !important;
+  --ant-radio-button-color: #adbac7 !important;
+  --ant-radio-button-checked-bg: #1677ff !important;
+  --ant-radio-button-solid-checked-bg: #1677ff !important;
+  --ant-radio-button-solid-checked-color: #ffffff !important;
+  --ant-radio-button-solid-checked-hover-bg: #4096ff !important;
+  --ant-radio-button-solid-checked-active-bg: #0958d9 !important;
+  --ant-button-group-border-color: #444c56 !important;
+
+  /* ── Button 默认态（Modal 底部的 创建 / 取消） ── */
+  --ant-button-default-bg: #2d333b !important;
+  --ant-button-default-color: #adbac7 !important;
+  --ant-button-default-border-color: #444c56 !important;
+  --ant-button-default-hover-bg: #3d444d !important;
+  --ant-button-default-hover-color: #ffffff !important;
+  --ant-button-default-hover-border-color: #545d68 !important;
+  --ant-button-default-active-bg: #3d444d !important;
+  --ant-button-default-active-color: #adbac7 !important;
+  --ant-button-default-active-border-color: #545d68 !important;
+  --ant-button-default-bg-disabled: #2d333b !important;
+  --ant-button-border-color-disabled: #3d444d !important;
+  --ant-button-solid-text-color: #ffffff !important;
+  --ant-button-primary-color: #ffffff !important;
+  --ant-button-text-text-color: #768390 !important;
+  --ant-button-text-text-hover-color: #adbac7 !important;
+
+  /* ── Tag 默认态（预设色见下方显式规则） ── */
+  --ant-tag-default-bg: #373e47 !important;
+  --ant-tag-default-color: #adbac7 !important;
+  --ant-tag-solid-text-color: #22272e !important;
+
+  /* ── Input（新建分组 Modal、"加入自选"搜索框） ──
+     antd 用 --ant-input-hover-bg / --ant-input-active-bg 画 hover 和 focus 态的底色，
+     这两个只覆盖基础底色是不够的：鼠标一移上去就会闪回白底。 */
+  --ant-input-hover-bg: #373e47 !important;
+  --ant-input-active-bg: #2d333b !important;
+  --ant-input-hover-border-color: #545d68 !important;
+  --ant-input-active-border-color: #1677ff !important;
+  --ant-input-active-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2) !important;
+  --ant-input-addon-bg: #2d333b !important;
+
+  /* Button（新建分组弹窗的「取消 / 创建」等）。
+   antd v6 把按钮拆成两层类：`-color-*`（配色角色）+ `-variant-*`（形态）。
+   实际 DOM：取消 = .ant-btn-color-default.ant-btn-variant-outlined
+            创建 = .ant-btn-color-primary .ant-btn-variant-solid
+   底色走的是**元素级** `--ant-color-bg-container` / `--ant-color-primary`，
+   .ant-btn 自己带 .css-var-root，浅色 token 直接盖掉 :root 那一层 →
+   outlined 按钮在暗底上会渲染成**白底**。
+   只压 color 不压 background 反而更糟（白底 + 浅灰字，等于看不见），
+   所以这里 bg / color / border 三件套一起给。
+   组件自带的更高特异性规则（爱心按钮 .ch-section-1 .watchlist-toggle-btn.ant-btn-sm）
+   不受影响，仍然压得住。 */
+.ant-btn.ant-btn-color-default.ant-btn-variant-outlined {
+  background: #2d333b !important;
+  color: #adbac7 !important;
+  border-color: #444c56 !important;
+}
+.ant-btn.ant-btn-color-default.ant-btn-variant-outlined:not(:disabled):hover {
+  background: #3d444d !important;
+  color: #ffffff !important;
+  border-color: #545d68 !important;
+}
+.ant-btn.ant-btn-color-default.ant-btn-variant-outlined:not(:disabled):active {
+  background: #3d444d !important;
+  color: #adbac7 !important;
+  border-color: #545d68 !important;
+}
+/* default + solid（幽灵底色的实心按钮） */
+.ant-btn.ant-btn-color-default.ant-btn-variant-solid {
+  background: #444c56 !important;
+  color: #adbac7 !important;
+  border-color: #444c56 !important;
+}
+/* text 变体（齿轮按钮）：只留 hover 底色 */
+.ant-btn.ant-btn-variant-text {
+  background: transparent !important;
+  color: #768390 !important;
+}
+.ant-btn.ant-btn-variant-text:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #adbac7 !important;
+}
+/* primary 实心（创建 / 确定）：底色用 antd 主色蓝，文字纯白 */
+.ant-btn.ant-btn-color-primary.ant-btn-variant-solid {
+  background: #1677ff !important;
+  color: #ffffff !important;
+  border-color: #1677ff !important;
+}
+.ant-btn.ant-btn-color-primary.ant-btn-variant-solid:not(:disabled):hover {
+  background: #4096ff !important;
+  color: #ffffff !important;
+  border-color: #4096ff !important;
+}
+.ant-btn.ant-btn-color-primary.ant-btn-variant-solid:not(:disabled):active {
+  background: #0958d9 !important;
+  color: #ffffff !important;
+  border-color: #0958d9 !important;
+}
+/* 禁用态：浅色主题默认是"浅灰底 + 浅灰字"，暗底上要么看不见、
+   要么像可点。统一成"深灰底 + 深灰字"，跟 --ant-color-text-disabled 一致。
+   放在 primary 之后，让选择器同权重时后者胜。 */
+.ant-btn.ant-btn-variant-outlined:disabled,
+.ant-btn.ant-btn-variant-solid:disabled {
+  background: #2d333b !important;
+  color: #545d68 !important;
+  border-color: #3d444d !important;
+}
+.ant-btn.ant-btn-color-primary.ant-btn-variant-solid:disabled {
+  background: #3d444d !important;
+  color: #545d68 !important;
+  border-color: #3d444d !important;
+}
+/* 按钮里 <span class="ant-btn-icon"> 里的图标颜色：antd 默认就继承按钮文字色，
+   这里刻意不写 color —— 同特异性的规则谁生效纯看注入顺序，贸然加一条
+   `color: inherit` 反而可能盖掉爱心按钮那条 `color: #ef5350`（已加自选的红 ♥）。 */
+
+/* ── Modal ── */
+  --ant-modal-content-bg: #2d333b !important;
+  --ant-modal-header-bg: #2d333b !important;
+  --ant-modal-footer-bg: #2d333b !important;
+  --ant-modal-title-color: #adbac7 !important;
+  --ant-modal-header-border-bottom: 1px solid #373e47 !important;
+  --ant-modal-footer-border-top: 1px solid #373e47 !important;
+}
+
+/* ═══ 以下是变量覆盖不到 / 不够稳的部分，用显式规则兜底 ═══ */
+
+/* Select 收起态。
+   两个坑：
+   1) antd v6 不再有 .ant-select-selector 这层了，收起态就是根节点
+      .ant-select.ant-select-outlined 自己画底色和边框（内部是 .ant-select-content 放文字）。
+   2) .ant-select-outlined 上有一条**元素级**变量重绑定：
+      `--ant-select-background-color: var(--ant-select-selector-bg)`。
+      继承永远输给直接命中，所以在 :root 覆盖同名变量对这颗 Select 无效，
+      必须连元素级那三个变量一起用 !important 压掉。 */
+.ant-select.ant-select-outlined {
+  --ant-select-background-color: #2d333b !important;
+  --ant-select-border-color: #444c56 !important;
+  --ant-select-color: #adbac7 !important;
+  background-color: #2d333b !important;
+  border-color: #444c56 !important;
+  color: #adbac7 !important;
+}
+.ant-select.ant-select-outlined:not(.ant-select-disabled):hover {
+  --ant-select-border-color: #545d68 !important;
+  background-color: #2d333b !important;
+  border-color: #545d68 !important;
+}
+.ant-select.ant-select-outlined.ant-select-focused {
+  --ant-select-border-color: #1677ff !important;
+  background-color: #2d333b !important;
+  border-color: #1677ff !important;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2) !important;
+}
+/* 选中值文字：antd 默认走 --ant-color-text-placeholder（灰），暗底上要提亮 */
+.ant-select .ant-select-content {
+  color: #adbac7 !important;
+}
+/* 搜索框（showSearch 时可编辑的那个 input） */
+.ant-select .ant-select-input {
+  color: #adbac7 !important;
+}
+/* 清除按钮 / 下拉箭头 */
+.ant-select .ant-select-clear,
+.ant-select .ant-select-suffix .anticon {
+  color: #768390 !important;
+  background: transparent !important;
+}
+.ant-select .ant-select-clear:hover {
+  color: #adbac7 !important;
+}
+
+/* Select 下拉面板：挂在 body 上的浮层，不在 .ch-section-* 里，必须写全局选择器 */
+.ant-select-dropdown {
+  background: #373e47 !important;
+  border: 1px solid #444c56 !important;
+}
+.ant-select-dropdown .ant-select-item {
+  color: #adbac7 !important;
+}
+.ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background-color: #444c56 !important;
+}
+.ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background-color: rgba(22, 119, 255, 0.2) !important;
+  color: #ffffff !important;
+}
+/* 禁用项（如 0AMV 的周/月/季/年线——INDICES 里标了 dailyOnly:true）。
+   别用 --ant-color-text-disabled 那个 #545d68：压在 #373e47 面板上对比度约 2:1，
+   四个选项一起灰成一片几乎读不出来（2026-10-10 实测）。
+   改成 tertiary 灰 #6e7781 —— 仍是"弱"的语气，但能看清写的到底是什么。 */
+.ant-select-dropdown .ant-select-item-option-disabled {
+  color: #6e7781 !important;
+  cursor: not-allowed;
+}
+/* 禁用项被 hover 时别跳回更亮的底色，否则看起来像能点 */
+.ant-select-dropdown .ant-select-item-option-disabled.ant-select-item-option-active {
+  background-color: transparent !important;
+}
+/* 空结果提示 */
+.ant-select-dropdown .ant-select-item-empty {
+  color: #6e7781 !important;
+}
+
+/* Radio.Button 组（左侧分组 tab + 头部"筹码/基本面"） */
+.ant-radio-button-wrapper {
+  background: #2d333b !important;
+  color: #adbac7 !important;
+  border-color: #444c56 !important;
+}
+.ant-radio-button-wrapper:not(.ant-radio-button-wrapper-disabled):hover {
+  color: #ffffff !important;
+  border-color: #545d68 !important;
+}
+.ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+  background: #1677ff !important;
+  color: #ffffff !important;
+  border-color: #1677ff !important;
+}
+
+/* Tag 预设色：浅色 token 在深底上过亮，改成"半透明底 + 同色亮字" */
+.ant-tag-blue {
+  color: #58a6ff !important;
+  background: rgba(22, 119, 255, 0.15) !important;
+  border-color: rgba(22, 119, 255, 0.35) !important;
+}
+.ant-tag-cyan {
+  color: #22d3ee !important;
+  background: rgba(6, 182, 212, 0.15) !important;
+  border-color: rgba(6, 182, 212, 0.35) !important;
+}
+.ant-tag-green {
+  color: #4ade80 !important;
+  background: rgba(34, 197, 94, 0.15) !important;
+  border-color: rgba(34, 197, 94, 0.35) !important;
+}
+
+/* Input（新建分组 Modal、"加入自选"搜索框） */
+.ant-input,
+.ant-input-affix-wrapper {
+  background-color: #2d333b !important;
+  border-color: #444c56 !important;
+  color: #adbac7 !important;
+}
+.ant-input::placeholder,
+.ant-input-affix-wrapper input::placeholder {
+  color: #6e7781 !important;
+}
+.ant-input:hover,
+.ant-input-affix-wrapper:hover {
+  border-color: #545d68 !important;
+}
+.ant-input:focus,
+.ant-input-affix-wrapper-focused {
+  border-color: #1677ff !important;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2) !important;
+}
+.ant-input-affix-wrapper .anticon {
+  color: #768390 !important;
+}
+
+/* Modal 外框 / 关闭按钮。
+   注意 antd v6 把外层面板从 .ant-modal-content 改名成 .ant-modal-container，
+   老名字写在这里是死代码（.ant-modal-content 在 v6 的样式里根本不存在）。
+
+   ⚠️ 文字颜色**必须**在这里显式写死，不能指望上面 :root 那批 --ant-modal-*
+   / --ant-color-text* 变量——原因见文件开头「:root 块的真实效力」那段。
+   漏掉的后果：弹窗标题和正文是黑的，压在 #2d333b 的深底上完全看不清
+   （2026-10-10 实测：设置弹窗 / 新建分组弹窗都是黑字）。 */
+.ant-modal .ant-modal-container {
+  background: #2d333b !important;
+  border: 1px solid #444c56 !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important;
+}
+.ant-modal .ant-modal-header {
+  background: #2d333b !important;
+  border-bottom: 1px solid #373e47 !important;
+  color: #adbac7 !important;
+}
+/* 标题单独再压一道：antd 给 .ant-modal-title 的是 --ant-color-text-heading，
+   跟 header 继承来的 --ant-color-text 不是同一条变量，两处都要覆盖。 */
+.ant-modal .ant-modal-title {
+  color: #adbac7 !important;
+}
+/* 正文容器：v6 的 .ant-modal-body 没有自带 color，会继承 .ant-modal 根节点上
+   那个浅色 token 的**浅色版默认值**（近黑）。这里显式提亮。 */
+.ant-modal .ant-modal-body {
+  color: #adbac7 !important;
+}
+.ant-modal .ant-modal-footer {
+  border-top: 1px solid #373e47 !important;
+  color: #adbac7 !important;
+}
+/* 底部「取消 / 创建」两个按钮：默认按钮文字靠继承，primary 按钮文字走
+   --ant-button-content-color，v6 里默认是白色但浅色主题下不保险，一并压死。 */
+.ant-modal .ant-modal-footer .ant-btn {
+  color: #adbac7 !important;
+}
+.ant-modal .ant-modal-footer .ant-btn-primary {
+  color: #ffffff !important;
+}
+.ant-modal .ant-modal-footer .ant-btn-primary:hover {
+  color: #ffffff !important;
+}
+.ant-modal .ant-modal-footer .ant-btn:disabled {
+  color: #545d68 !important;
+}
+.ant-modal .ant-modal-close {
+  color: #768390 !important;
+}
+.ant-modal .ant-modal-close:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #adbac7 !important;
+}
+/* 遮罩：.ant-modal-mask 同样是带 .css-var-root 的独立节点，
+   继承不到 :root 上那条 --ant-color-bg-mask，这里显式给。 */
+.ant-modal-mask {
+  background: rgba(0, 0, 0, 0.65) !important;
+}
+
+/* Checkbox 标签文字。
+   .ant-checkbox-wrapper 根节点同时挂了 .css-var-root 和 .ant-checkbox-css-var，
+   antd v6 把整套 token **声明在这个元素自己身上**，所以浅色默认的 colorText
+   （rgba(0,0,0,.88)，近黑）直接生效，既不吃 :root 上那条覆盖，也不继承
+   .ant-modal-body 的亮色 —— 压在深色面板上对比度只有 1.65，几乎看不见
+   （2026-10-11 实测：色值 rgb(173,186,199) 的 modal-body vs rgba(0,0,0,.88)
+   的 checkbox-wrapper）。
+   跟上面 Modal / Select 同理，只能用显式 class 规则兜住。 */
+.ant-checkbox-wrapper {
+  color: #adbac7 !important;
+}
+
+/* Empty 空状态插图（浅色 SVG 在深底上几乎看不见） */
+.ant-empty .ant-empty-image svg {
+  opacity: 0.35 !important;
+}
+
+/* Spin 遮罩：加载中不要把底下内容压成灰白 */
+.ant-spin-blur::after {
+  background: rgba(13, 17, 23, 0.45) !important;
+}

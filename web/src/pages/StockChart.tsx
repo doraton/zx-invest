@@ -21,7 +21,8 @@ interface KLineData {
   high: number;
   low: number;
   close: number;
-  amount: number;
+  /** 成交量（手）。字段名与库列 `volume` 一致。 */
+  volume: number;
 }
 
 const CATEGORY_MAP: Record<string, number> = {
@@ -29,7 +30,7 @@ const CATEGORY_MAP: Record<string, number> = {
   '周K': 5,
 };
 
-const API_BASE = 'http://localhost:8310';
+import { API_BASE } from '../config/api';
 
 export default function StockChart() {
   const [klineData, setKlineData] = useState<KLineData[]>([]);
@@ -115,7 +116,7 @@ export default function StockChart() {
                 <YAxis domain={['auto', 'auto']} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="amount" fill="#82ca9d" name="成交量" yAxisId="amount" />
+                <Bar dataKey="volume" fill="#82ca9d" name="成交量" yAxisId="volume" />
                 <Line type="monotone" dataKey="close" stroke="#8884d8" name="收盘价" dot={false} yAxisId="price" />
               </ComposedChart>
             </ResponsiveContainer>

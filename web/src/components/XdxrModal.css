@@ -1,0 +1,72 @@
+/* 除息除权记录弹窗。
+ *
+ * 配色沿用本站暗色主题（#161b22 底 / #21262d 行 / #8b949e 说明 / #4da3ff 强调蓝），
+ * 与 theme/darkAntd.css 里已经压过色的 antd Modal 配套。
+ *
+ * 列表结构参考用户给的行情软件截图：左侧日期（黄色）、右侧文案、等宽数字收在末尾。 */
+
+.xdxr-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* 记录多的时候内部滚动，弹窗高度封顶，别把页面撑长 */
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.xdxr-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 64px;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.xdxr-row:hover {
+  background: rgba(77, 163, 255, 0.08);
+}
+
+/* 本次点击的除权日：左侧亮蓝竖条 + 底色，比单纯改字色更容易一眼定位 */
+.xdxr-row.is-active {
+  background: rgba(77, 163, 255, 0.16);
+  box-shadow: inset 3px 0 0 #4da3ff;
+}
+
+.xdxr-date {
+  color: #e3b341;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 13px;
+}
+
+.xdxr-text {
+  color: #c9d1d9;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xdxr-row.is-active .xdxr-text {
+  color: #ffffff;
+}
+
+/* 除权前的收盘价：用来对照当天为什么跳空，纯参考信息，压暗一档 */
+.xdxr-prev {
+  color: #768390;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 12px;
+  text-align: right;
+}
+
+.xdxr-hint {
+  padding: 28px 0;
+  color: #768390;
+  font-size: 13px;
+  text-align: center;
+}
+
+.xdxr-hint-error {
+  color: #f85149;
+}

@@ -1,0 +1,16 @@
+.app-layout {
+  display: flex;
+  /* height 100vh（不是 min-height）：让侧栏 + main 都严格铺满整个视口高度，
+     不被内容高度限制。否则侧栏高度 = 内容高度，主区也跟着变短。 */
+  height: 100vh;
+  min-height: 100vh;
+  background: #22272e;
+  color: #adbac7;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  /* overflow: hidden：每个页面自己管内部滚动，避免 viewport-level scroll 影响布局 */
+  overflow: hidden;
+}

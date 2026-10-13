@@ -1,0 +1,115 @@
+/* 键盘精灵。配色沿用行情页暗色体系：
+   背景 #22272e / 分隔线 #373e47 / 正文 #adbac7 / 次要 #768390，
+   选中行底色用 antd 的主色 rgba(22, 119, 255, 0.14)。 */
+
+.stock-sprite-modal .ant-modal-content {
+  background: #2d333b;
+  border: 1px solid #444c56;
+}
+
+.stock-sprite-modal .ant-modal-header {
+  background: #2d333b;
+  border-bottom: 1px solid #373e47;
+}
+
+.stock-sprite-modal .ant-modal-title {
+  color: #adbac7;
+}
+
+.stock-sprite-modal .ant-modal-close {
+  color: #768390;
+}
+
+.stock-sprite-modal .ant-modal-close:hover {
+  color: #adbac7;
+}
+
+.sprite-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.sprite-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: #768390;
+}
+
+/* ---- 输入框 ---- */
+
+.sprite-input-wrap {
+  position: relative;
+  margin: 12px 0;
+}
+
+.sprite-input-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #768390;
+  pointer-events: none;
+}
+
+.sprite-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 34px;
+  border-radius: 6px;
+  border: 1px solid #444c56;
+  background: #22272e;
+  color: #adbac7;
+  font-size: 14px;
+  outline: none;
+}
+
+.sprite-input::placeholder {
+  color: #6e7781;
+}
+
+.sprite-input:focus {
+  border-color: #1677ff;
+}
+
+/* ---- 结果列表 ---- */
+
+.sprite-results {
+  max-height: 320px;
+  overflow-y: auto;
+  min-height: 120px;
+}
+
+.sprite-loading,
+.sprite-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 0;
+}
+
+.sprite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sprite-row.active {
+  background: rgba(22, 119, 255, 0.14);
+}
+
+.sprite-row-name {
+  font-size: 14px;
+  color: #adbac7;
+}
+
+.sprite-row-code {
+  font-size: 12px;
+  color: #768390;
+  font-family: Consolas, Monaco, monospace;
+}

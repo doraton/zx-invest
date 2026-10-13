@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.30.0",
     "pytdx>=1.13",
     "akshare>=1.16.0",
+    "aiomysql>=0.2.0",
 ]
 
 [tool.uv]

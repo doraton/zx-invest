@@ -1,0 +1,106 @@
+[
+  {
+    "name": "cyq_perf 每日筹码分布",
+    "status": "DENY",
+    "rows": 0,
+    "cols": [],
+    "sample": {},
+    "msg": "抱歉，您没有接口(cyq_perf)访问权限，权限的具体详情访问：https://tushare.pro/document/1?doc_id=108。"
+  },
+  {
+    "name": "cyq_chips 筹码分布",
+    "status": "DENY",
+    "rows": 0,
+    "cols": [],
+    "sample": {},
+    "msg": "抱歉，您没有接口(cyq_chips)访问权限，权限的具体详情访问：https://tushare.pro/document/1?doc_id=108。"
+  },
+  {
+    "name": "stk_holder_number 股东人数",
+    "status": "DENY",
+    "rows": 0,
+    "cols": [],
+    "sample": {},
+    "msg": "请指定正确的接口名"
+  },
+  {
+    "name": "stk_forecast 业绩预告",
+    "status": "DENY",
+    "rows": 0,
+    "cols": [],
+    "sample": {},
+    "msg": "请指定正确的接口名"
+  },
+  {
+    "name": "daily_basic 每日指标",
+    "status": "OK",
+    "rows": 21,
+    "cols": [
+      "ts_code",
+      "trade_date",
+      "turnover_rate",
+      "turnover_rate_f",
+      "volume_ratio",
+      "free_share"
+    ],
+    "sample": {
+      "ts_code": "600570.SH",
+      "trade_date": "20260930",
+      "turnover_rate": 0.5273,
+      "turnover_rate_f": 0.6658,
+      "volume_ratio": 0.75,
+      "free_share": 149990.4855
+    },
+    "msg": ""
+  },
+  {
+    "name": "adj_factor 复权因子",
+    "status": "OK",
+    "rows": 181,
+    "cols": [
+      "ts_code",
+      "trade_date",
+      "adj_factor"
+    ],
+    "sample": {
+      "ts_code": "600570.SH",
+      "trade_date": "20260930",
+      "adj_factor": 45.62
+    },
+    "msg": ""
+  },
+  {
+    "name": "dividend 分红送股",
+    "status": "DENY",
+    "rows": 0,
+    "cols": [],
+    "sample": {},
+    "msg": "抱歉，您访问接口(dividend)频率超限(5次/天)，具体频次详情：https://tushare.pro/document/1?doc_id=108。"
+  },
+  {
+    "name": "stock_basic 股票列表",
+    "status": "DENY",
+    "rows": 0,
+    "cols": [],
+    "sample": {},
+    "msg": "抱歉，您访问接口(stock_basic)频率超限(5次/天)，具体频次详情：https://tushare.pro/document/1?doc_id=108。"
+  },
+  {
+    "name": "trade_cal 交易日历",
+    "status": "OK",
+    "rows": 365,
+    "cols": [
+      "exchange",
+      "cal_date",
+      "is_open",
+      "pretrade_date"
+    ],
+    "sample": {
+      "exchange": "SSE",
+      "cal_date": "20261231",
+      "is_open": 1,
+      "pretrade_date": "20261230"
+    },
+    "msg": ""
+  }
+]

@@ -1,0 +1,364 @@
+/* ChartHeader —— 2026-10-12 版面改造后的两块内容样式。
+   原来这里是「一条 48px header 行里的 1fr 1fr 1fr 三等分」，现在拆成：
+     - SymbolInfo → 右列上部的右半列（宽度只有右列的一半，靠 flex-wrap 自适应换行）
+     - ChartTools → 浮在主图顶部右侧的 overlay，跟 canvas 上画的 MA 图例同一行
+
+   颜色规则：
+     - 涨 = 红 #ef5350
+     - 跌 = 绿 #26a69a
+   字体：等宽（Consolas/Monaco），数字好看。
+   注：antd 控件（Select / Tag / Button / Slider）的暗色底色统一由
+   src/theme/darkAntd.css 的全局层接管，本文件只写跟"布局 / 尺寸 /
+   涨跌语义色"相关的规则，不再逐个控件补暗色覆盖。 */
+
+/* ──────── SymbolInfo：右列右半列 ────────
+   列宽 = 右列宽的一半（默认 r_v=22.5% → 右列约 380px → 本列约 190px），
+   高度却有 500px 上下，所以内容**固定排三行**，每行一个内容块：
+     ① 代码 + 名称   ② 报价   ③ 自选爱心
+   不用 flex-wrap —— 那样行数会随列宽漂移，右列一变宽爱心就挤回报价那行去了。
+
+   2026-10-13：下面所有字号统一成 14px，与 overlay 里「日线 / 不复权」Select
+   同号（antd v6 的 ant-select-sm 实际渲染就是 14px）。原来 code 14 / name 13 /
+   价格 15 / 涨跌幅 13 四种字号混排，在这一小块里显得很碎。 */
+
+.symbol-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* 第 1 行：代码 + 名称 */
+.symbol-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* 红色等宽大写 code —— 证券标识关键，绝对不能缩 */
+.symbol-info .symbol-code {
+  color: #ef5350;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.4;
+  /* 兜底：万一数据源里 code 含小写也保证大写 */
+  text-transform: uppercase;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* 股票名称：低饱和度灰色，紧跟在 code 后面 */
+.symbol-info .symbol-name {
+  color: #768390;
+  font-size: 14px;
+  line-height: 1.4;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ──────── 实时报价 ────────
+   列很窄，报价是这里最"弹性"的一段：空间不够时允许截断成省略号，
+   而不是把 code / Tag / 爱心挤变形。 */
+
+.symbol-info .header-quote {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-weight: 600;
+  font-size: 14px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+}
+
+.symbol-info .header-quote.up {
+  color: #ef5350;
+}
+
+.symbol-info .header-quote.down {
+  color: #26a69a;
+}
+
+.symbol-info .header-quote-pct {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ──────── 自选按钮：toggle 爱心 + ± ────────
+   行为（所有标的统一处理，没有内置分组特例）：
+     - 空心 ♡ + 灰 "＋"（未加）→ 调 addWatch()，变实心 ♥ −；Tooltip "添加到自选"
+     - 实心 ♥ + 红 "−"（已加）→ 调 removeWatch()，变回空心 ♡ ＋；Tooltip "从自选移除"
+   视觉：爱心 18px，"＋"/"−" 用 absolute 定位锚到爱心右下角 (right: -4px; bottom: -4px)，
+   叠在爱心曲线上，不画 circle、不加 bg、不换色，让 ± 看起来是爱心"长出来"的一部分。
+   按钮宽高约 28×22（只装爱心本身，± 溢出右下角；overflow: visible 保证不被裁）。 */
+.symbol-info .watchlist-toggle-btn.ant-btn-sm {
+  height: 22px;
+  min-width: 28px;
+  padding: 0 5px;
+  font-size: 12px;
+  line-height: 20px;
+  border-radius: 3px;
+  /* 暗色主题基色 */
+  background: transparent !important;
+  border-color: #373e47 !important;
+  color: #768390 !important;
+  /* 按钮本身绝对不能缩 */
+  flex-shrink: 0;
+  /* 不要 antd 自带的 box-shadow / 涟漪，简洁一点 */
+  box-shadow: none !important;
+  /* marker 用 absolute 定位会溢出 button 范围，要让 button 不裁掉它 */
+  overflow: visible !important;
+}
+
+/* 按钮里那颗放大的爱心（antd 默认 ~14px，这里升到 18px 抢眼） */
+.symbol-info .watchlist-toggle-content .anticon {
+  font-size: 18px !important;
+  line-height: 1;
+}
+
+/* ± 标记：定位到爱心的右下角，叠加在爱心曲线上而不是独立刻进图，
+   让它们看起来是一个整体（不画 circle、不加 bg、不换色）。
+   content 设 position: relative 给 marker 当定位锚点。 */
+.symbol-info .watchlist-toggle-content {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+.symbol-info .watchlist-toggle-marker {
+  position: absolute;
+  /* 锚到爱心右下角：水平稍偏右、垂直稍偏下，让 +/- 嵌进爱心的"右肩" */
+  right: -4px;
+  bottom: -4px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  /* 继承 button 的 color（灰/红），不另设色 */
+  color: inherit;
+}
+
+/* hover 态：轻微提亮，给用户反馈 */
+.symbol-info .watchlist-toggle-btn.ant-btn-sm:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: #444c56 !important;
+  color: #adbac7 !important;
+}
+
+/* "已添加" 态：♥ + "−" 都用红色（视觉直觉 = 喜爱 / 减点暗示可移除） */
+.symbol-info .watchlist-toggle-btn.is-added.ant-btn-sm,
+.symbol-info .watchlist-toggle-btn.is-added.ant-btn-sm:disabled {
+  background: transparent !important;
+  border-color: #373e47 !important;
+  color: #ef5350 !important; /* 涨红 = 喜爱/关注 */
+}
+
+/* ──────── Tooltip 暗色覆盖 ────────
+   antd v5 默认 Tooltip 背景是深色 (#000, 0.85)，但项目没包 ConfigProvider 时
+   不同 antd 版本/构建下偶尔会渲成白底。这里把 Tooltip 内容锁成 #373e47 暗色面板 + 浅色字。 */
+.symbol-info .ant-tooltip .ant-tooltip-inner {
+  background-color: #373e47 !important;
+  color: #adbac7 !important;
+  font-size: 12px;
+  border: 1px solid #444c56;
+}
+.symbol-info .ant-tooltip .ant-tooltip-arrow::before {
+  background: #373e47 !important;
+}
+
+/* ──────── ChartTools：浮在主图顶部右侧的 overlay ────────
+   必须是浮层 —— klinecharts 的 "MA20: xx" 图例是画在 canvas 上的，
+   插不进 DOM，只能浮在同一行的位置。
+   right 用 --chart-y-axis-w（MarketChart 实测主图 canvas 右边缘与容器右边缘之差）
+   让开右侧价格刻度；这个值是运行时才知道的，固定值对不上。
+   pointer-events 必须 auto（否则点不动），但只占右上角一小块，不挡十字线 hover。 */
+.chart-tools {
+  position: absolute;
+  top: 4px;
+  right: calc(var(--chart-y-axis-w, 60px) + 8px);
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+/* 周期后缀（橙色 "1D" 徽章）已于 2026-10-13 删除：周期已经写在左边的
+   Select 里，徽章是重复信息，还把 overlay 撑宽。 */
+
+.chart-tools .ch-settings-btn.ant-btn-sm {
+  width: 24px;
+  padding: 0;
+  color: #768390;
+  flex-shrink: 0;
+  box-shadow: none !important;
+}
+.chart-tools .ch-settings-btn.ant-btn-sm:hover {
+  color: #adbac7;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ──────── 设置弹窗：现价线 + 版面两项 ──────── */
+
+.settings-divider {
+  height: 1px;
+  background: #373e47;
+  margin: 14px 0 12px;
+}
+
+.settings-group-title {
+  font-size: 12px;
+  color: #768390;
+  margin-bottom: 10px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.settings-label {
+  width: 52px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #adbac7;
+}
+
+.settings-slider {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 4px;
+}
+
+/* 百分比 + 换算出来的实际像素，让用户知道"这个比例现在是多宽/多高" */
+.settings-value {
+  width: 104px;
+  flex-shrink: 0;
+  text-align: right;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  color: #8b949e;
+}
+
+.settings-hint {
+  font-size: 12px;
+  color: #6e7781;
+  line-height: 1.6;
+  margin-top: 2px;
+}
+
+/* ──────── 添加到自选：分组选择 dropdown ────────
+   弹窗是 fixed 定位的独立 div（不再用 antd Popover——因为 Popover 的 trigger
+   在受控 open 模式下不稳定，事件链路容易丢失），锚定在爱心按钮正下方。
+   整体 ~200px 宽，紧凑；暗色面板跟 #22272e 头部底色统一。
+
+   内部布局：
+     - 标题："分组"
+     - 列表：每个分组一行 checkbox（用户创建的分组 + 兜底"其他"）
+       勾上 = 加入该分组（addWatch），取消 = 移除（removeWatch），立即生效
+       真正的 <input type="checkbox"> 用 visually-hidden 隐藏，复用 .row-mark 作为视觉方框。
+     - 不再有"添加"主按钮——勾选动作就是提交。 */
+
+.watchlist-picker {
+  display: flex;
+  flex-direction: column;
+  z-index: 1100;
+  width: 200px;
+  padding: 10px 12px;
+  background-color: #2d333b;
+  color: #adbac7;
+  border: 1px solid #444c56;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+.watchlist-picker-title {
+  font-size: 12px;
+  color: #768390;
+  margin-bottom: 8px;
+}
+
+.watchlist-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.watchlist-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  cursor: pointer;
+  color: #adbac7;
+  font-size: 13px;
+  user-select: none;
+  border-radius: 3px;
+  transition: background 0.12s;
+}
+.watchlist-picker-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.watchlist-picker-row.checked {
+  color: #ef5350;
+}
+.watchlist-picker-row.disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* 真实 checkbox 视觉隐藏，但保留可访问性 + 键盘可用 */
+.watchlist-picker-row-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 自定义方框（替代浏览器默认 checkbox） */
+.watchlist-picker-row-mark {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #444c56;
+  border-radius: 2px;
+  background: #22272e;
+  flex-shrink: 0;
+  position: relative;
+  box-sizing: border-box;
+  transition: border-color 0.12s, background 0.12s;
+}
+.watchlist-picker-row:hover .watchlist-picker-row-mark {
+  border-color: #ef5350;
+}
+.watchlist-picker-row.checked .watchlist-picker-row-mark {
+  background: #ef5350;
+  border-color: #ef5350;
+}
+.watchlist-picker-row.checked .watchlist-picker-row-mark::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 4px;
+  height: 8px;
+  border: solid #2d333b;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.watchlist-picker-row-label {
+  flex: 1;
+}

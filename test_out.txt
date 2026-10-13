@@ -1,0 +1,2 @@
+﻿{"code":0,"data":[{"code":"sz000001","raw_code":"000001","name":"平安银行"},{"code":"sz001359","raw_code":"001359","name":"平安电工"},{"code":"sh601318","raw_code":"601318","name":"中国平安"}],"query":"平安"}
+

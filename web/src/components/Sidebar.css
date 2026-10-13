@@ -1,0 +1,154 @@
+.sidebar {
+  /* 176 而不是 150：logo 区整体放大后（34px 方框 + 10px 间距 + 18px 主标题）
+     150 装不下，nowrap 的主副标题会直接溢出到内容区。
+     下面所有 logo 尺寸都依赖这一条，改窄了先回来改这里。 */
+  width: 176px;
+  background: #22272e;
+  border-right: 1px solid #373e47;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  flex-shrink: 0;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* 左右内边距收到 10：logo 区要横向铺满 176px 的侧栏，padding 一大就补不回来。
+     算式（都写在下面各处注释里）：10 + 46 + 12 + 86 + 10 = 164，剩 12px 余量。 */
+  padding: 20px 10px 26px;
+}
+
+/* logo 图形位。**故意留空**：没有资源之前用一个描边方框占住尺寸，
+   免得日后塞进真图时把主副标题挤走。空框用虚线，一眼看出是待填的占位。 */
+.logo-image {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border: 1px dashed #545d68;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* 主副标题竖排。line-height 压到 1.1，否则默认行距会把两行撑得比 logo 还高。
+   flex:1 让这一块吃掉侧栏剩余宽度——文字本身是 nowrap 定宽的，
+   但容器撑满后整块内容才是「贴着侧栏铺开」而不是缩在左上角。 */
+.logo-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.1;
+}
+
+.sidebar-logo .logo-mark {
+  letter-spacing: 1.5px;
+}
+
+.logo-mark {
+  color: #1f6feb;
+  font-weight: 700;
+  font-size: 20px;
+  padding: 0;
+  text-align: left;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* 副标题。2026-10-10 起不再 display:none——原先是个从未启用过的空占位 div。 */
+.logo-title {
+  color: #6e7781;
+  font-size: 13px;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+}
+
+/* 键盘精灵入口。压在 logo 下面、导航上面，宽度跟导航项对齐。 */
+.sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 8px 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #444c56;
+  background: #2d333b;
+  color: #768390;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar-search:hover {
+  border-color: #1f6feb;
+  color: #adbac7;
+}
+
+.sidebar-search-label {
+  flex: 1;
+}
+
+/* 键位角标：把 `/` 这个快捷键画在界面上，否则没人知道有它。 */
+.sidebar-search-kbd {
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid #444c56;
+  background: #22272e;
+  color: #6e7781;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 8px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  color: #768390;
+  text-decoration: none;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-item:hover {
+  background: #2d333b;
+  color: #adbac7;
+}
+
+.sidebar-item.active {
+  background: linear-gradient(90deg, #1f6feb 0%, #1f6feb33 100%);
+  color: #fff;
+  font-weight: 600;
+}
+
+.sidebar-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background: #444c56;
+  border-radius: 3px;
+  font-size: 10px;
+  text-align: center;
+  line-height: 16px;
+  color: #768390;
+}
+
+.sidebar-item.active .sidebar-icon {
+  background: #fff;
+  color: #1f6feb;
+}
+
+.sidebar-footer {
+  /* 占位预留（VIP/留言板已移除）；不显示任何内容但保留 class 以备扩展 */
+  display: none;
+}

@@ -1,0 +1,38 @@
+# ---- 密钥 / 本地配置（绝不能提交）----
+.env
+.env.*
+!.env.example
+*.token
+tushare_token.json
+config.json
+config.txt
+secrets.json
+**/config.txt
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# ---- Node ----
+node_modules/
+dist/
+.vite/
+
+# ---- 探针产出 ----
+tdx2db_demo/
+*_probe_out/
+
+# ---- 前端验证产物 ----
+# playwright / 浏览器实测时产出的截图和一次性校验脚本，一律是临时证据，不进版本库。
+# 命名沿用项目约定的 `_` 前缀（临时）。web/src/assets/ 下的图片是正式资源，
+# 不受这条影响（该规则只匹配 web/ 根目录下 `_` 开头的 png）。
+#
+# ⚠️ .mjs 这条是补的：同一工作区有并行会话会周期性地 `git add -A`，把还在用、
+# 甚至已经删掉的临时脚本收进索引（2026-10-08 实测出现过 `AD` 状态，
+# 若不摘除，下次提交就会把校验脚本带进仓库）。
+web/_*.png
+web/_*.mjs

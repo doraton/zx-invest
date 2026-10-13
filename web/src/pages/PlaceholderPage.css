@@ -1,0 +1,19 @@
+.placeholder-page {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #22272e;
+}
+
+.placeholder-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #adbac7;
+  margin-bottom: 6px;
+}
+
+.placeholder-hint {
+  font-size: 13px;
+  color: #768390;
+}

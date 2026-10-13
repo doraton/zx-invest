@@ -1,0 +1,79 @@
+[
+  {
+    "api": "daily",
+    "status": "OK",
+    "rows": 1,
+    "elapsed": 0.14,
+    "msg": ""
+  },
+  {
+    "api": "weekly",
+    "status": "DENY",
+    "rows": 0,
+    "elapsed": 0.09,
+    "msg": "抱歉，您访问接口(weekly)频率超限(5次/天)，具体频次详情：https://tushare.pro/document/1?doc_id=108。"
+  },
+  {
+    "api": "monthly",
+    "status": "DENY",
+    "rows": 0,
+    "elapsed": 0.1,
+    "msg": "抱歉，您访问接口(monthly)频率超限(5次/天)，具体频次详情：https://tushare.pro/document/1?doc_id=108。"
+  },
+  {
+    "api": "daily_basic",
+    "status": "OK",
+    "rows": 1,
+    "elapsed": 0.1,
+    "msg": ""
+  },
+  {
+    "api": "dividend",
+    "status": "DENY",
+    "rows": 0,
+    "elapsed": 0.11,
+    "msg": "抱歉，您访问接口(dividend)频率超限(5次/天)，具体频次详情：https://tushare.pro/document/1?doc_id=108。"
+  },
+  {
+    "api": "stock_basic",
+    "status": "DENY",
+    "rows": 0,
+    "elapsed": 0.14,
+    "msg": "抱歉，您访问接口(stock_basic)频率超限(5次/天)，具体频次详情：https://tushare.pro/document/1?doc_id=108。"
+  },
+  {
+    "api": "adj_factor",
+    "status": "DENY",
+    "rows": 0,
+    "elapsed": 0.11,
+    "msg": "抱歉，您访问接口(adj_factor)频率超限(1次/分钟)，具体频次详情：https://tushare.pro/document/1?doc_id=108。"
+  },
+  {
+    "api": "trade_cal",
+    "status": "OK",
+    "rows": 30,
+    "elapsed": 0.11,
+    "msg": ""
+  },
+  {
+    "api": "namechange",
+    "status": "OK",
+    "rows": 3,
+    "elapsed": 0.1,
+    "msg": ""
+  },
+  {
+    "api": "stock_company",
+    "status": "OK",
+    "rows": 1,
+    "elapsed": 0.08,
+    "msg": ""
+  },
+  {
+    "api": "stk_mins",
+    "status": "DENY",
+    "rows": 0,
+    "elapsed": 0.11,
+    "msg": "抱歉，您访问接口(stk_mins)频率超限(2次/天)，具体频次详情：https://tushare.pro/document/1?doc_id=108。"
+  }
+]

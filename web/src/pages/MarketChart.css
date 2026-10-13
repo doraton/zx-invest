@@ -1,77 +1,264 @@
+/* 副图区高度 = 4 × --sub-chart-h + --x-axis-h（X 轴实测 24px，不是 30）。
+   这两个值**首帧由 CSS 给兜底**，跑起来后 MarketChart 会按版面比例
+   （设置里的「横线距上」）实算一遍，用 inline style 覆盖掉。
+   --sub-charts-total 是 :root 里的 calc，自定义属性在使用点才替换，
+   所以改这两个变量它会自动重算，右列底边始终和副图底边贴合。
+
+   约束：右列上半（筹码区 + 标识列）和主图**必须同高**，
+   两者都等于「K 线区高 − --sub-charts-total」，所以红线永远是两者共同的底边。 */
+:root {
+  --sub-chart-h: 185px;
+  --x-axis-h: 24px;
+  --sub-charts-total: calc(4 * var(--sub-chart-h) + var(--x-axis-h));
+}
+
+/* ── 总体：market-chart-page 自带 100vh，自包含 ─────────────────────────
+   不依赖父容器高度（无论是首页直接 <MarketChart /> 还是自选页嵌在 watchlist-main
+   里，调用方不需要管高度）。
+
+   chart-frame 自己处理 head/body 切分 + 边框 + 主题，market-chart-page
+   只负责把它放进 100vh 的视口里。结构是：
+     market-chart-page (100vh, padding 16)
+       └── chart-frame (flex: 1, 自管 head/body)
+             └── chart-frame-body (position: relative, chart-row 绝对定位锚点)
+                   └── chart-row (absolute inset:0)
+                         ├── kline-container (flex: 1)
+                         └── chart-right-column (flex: 0 0 var(--chart-right-w)) */
+
 .market-chart-page {
-  min-height: 100vh;
-  background: #0d1117;
+  height: 100vh;
+  display: flex;
   padding: 16px;
-  color: #e6e6e6;
+  background: #22272e;
+  color: #adbac7;
+  box-sizing: border-box;
 }
 
-.market-chart-page .chart-card {
-  background: #0d1117;
-  border: 1px solid #1c2128;
+.market-chart-page > .chart-frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
 }
 
-.market-chart-page .chart-card .ant-card-head {
-  border-bottom-color: #1c2128;
-  color: #e6e6e6;
-}
-
-.market-chart-page .chart-card .ant-card-head-title {
-  color: #e6e6e6;
-}
-
-.market-chart-page .header-title {
+/* chart-row：用 position: absolute + inset: 0 锚到 chart-frame-body，
+   绕开 grid/flex 链中 klinecharts 内部 canvas 的 attribute height 反向
+   把容器撑高的问题（canvas 默认 300×150 会反向把 chart-row 钉死）。
+   配合 height: 100% 双保险：万一 inset: 0 被覆盖，还能靠 height 兜底。 */
+.market-chart-page .chart-row {
+  position: absolute;
+  inset: 0;
+  height: 100%;
   display: flex;
-  align-items: center;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.market-chart-page .header-controls {
-  display: flex;
-  align-items: center;
-}
-
-.market-chart-page .quote-row {
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background: #161b22;
-  border-radius: 6px;
-}
-
-.market-chart-page .quote-row .label {
-  display: inline-block;
-  min-width: 56px;
-  margin-right: 8px;
-  color: #8b949e;
-  font-size: 12px;
-}
-
-.market-chart-page .quote-row .value {
-  font-size: 16px;
-  font-weight: 600;
-  font-family: 'Consolas', 'Monaco', monospace;
-}
-
-.market-chart-page .quote-row .value.up {
-  color: #ef5350;
-}
-
-.market-chart-page .quote-row .value.down {
-  color: #26a69a;
+  flex-direction: row;
+  min-height: 0;
 }
 
 .market-chart-page .kline-container {
-  width: 100%;
-  height: 580px;
-  background: #0d1117;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  background: #22272e;
+  border-right: 1px solid #373e47;
+  position: relative;
 }
 
-.market-chart-page .error-tip {
-  margin-top: 12px;
-  padding: 8px 12px;
-  background: rgba(239, 83, 80, 0.1);
-  color: #ef5350;
-  border: 1px solid rgba(239, 83, 80, 0.3);
+/* 焦点框：显式关掉，**不要**留 Chrome 的 UA 默认环。
+   2026-10-11 实测：Chrome 对「程序化 focus()」的 :focus-visible 判定偏宽，
+   鼠标只是悬停过来（onCrosshairChange 里抢的焦点）也会匹配上，
+   于是每挪一次鼠标图表就多个框 —— 纯噪声，还是我自己加的。
+   本图的焦点提示就是十字线 + 浮窗本身：按方向键时它们会明显动，够用了。
+   全站其它地方也没有通用焦点框（只有具体控件各自的 :focus）。 */
+.market-chart-page .kline-container:focus,
+.market-chart-page .kline-container:focus-visible {
+  outline: none;
+}
+
+.market-chart-page .kline-container > div {
+  /* klinecharts 内部 _chartContainer 撑满父级 */
+  min-height: 0;
+}
+
+/* 2026-10-10 删掉 .kline-history-hint —— 它 absolute 钉在图内左上角，
+   正好压住主图指标 legend（VOL / MA5 / MA10 / MA20 那行）。 */
+
+.market-chart-page .chart-right-column {
+  /* 右列宽 = var(--chart-right-w)（与 header col 2 同列宽，divider 天然对齐） */
+  flex: 0 0 var(--chart-right-w, 280px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 右上分两列：**宽度平分**，各 50%（1fr 1fr），不设固定 px。
+   比例（r_v）只决定这一整块的宽度，两列怎么分是这里的事，
+   调 r_v 时两列始终等宽、不会多出或少掉一块固定留白。 */
+.market-chart-page .chart-right-top {
+  flex: 1 1 0;
+  min-height: 0;
+  border-bottom: 1px solid #373e47;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.market-chart-page .chart-right-top > .chart-right-top-chip,
+.market-chart-page .chart-right-top > .chart-right-top-info {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.market-chart-page .chart-right-top > .chart-right-top-chip > .chip-distribution {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.market-chart-page .chart-right-top > .chart-right-top-info {
+  border-left: 1px solid #373e47;
+  padding: 8px 10px;
+  overflow: hidden;
+}
+
+.market-chart-page .chart-right-bottom {
+  flex: 0 0 var(--sub-charts-total);
+  min-height: 0;
+}
+
+/* 自绘 OHLC 浮窗：替代 klinecharts 默认蓝框 tooltip。
+   1) top: 28px = 在 1 号红线（card head 底）下方 + MA legend 行下方，
+      不遮挡主图顶部 MA 指标参数（"主图参数"），同时仍在 1 号红线下方。
+   2) anchor-left (left: 10)  / anchor-right (right: 100) 切换：right: 100px
+      是 y 轴价格标签宽度 + 余量，让 anchor-right 时不超出 chart pane 的
+      右边界（"指标的右边"）。
+   3) 跟随十字线 x 跳动：x > containerWidth/2 时 anchor-left，否则 anchor-right，
+      避免遮住当前 hover 的 K 线本身。 */
+.market-chart-page .crosshair-tooltip {
+  position: absolute;
+  top: 28px;
+  z-index: 5;
+  padding: 8px 10px;
+  background: rgba(22, 27, 34, 0.95);
+  border: 1px solid #1f6feb;
   border-radius: 4px;
-  font-size: 13px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
+
+.market-chart-page .crosshair-tooltip.anchor-left {
+  left: 0px;  /* 紧贴 kline-container 左边界（左红线位置）*/
+}
+
+.market-chart-page .crosshair-tooltip.anchor-right {
+  /* 紧贴 y 轴线 = 让出 y 轴价格标签区（默认 klinecharts y-axis width ≈ 56-80px），
+     这样 tooltip 右边缘对齐 y 轴线（右红线位置），不挡 4,080 / 3,920 等 y 轴标签。 */
+  right: 56px;
+}
+
+.market-chart-page .crosshair-tooltip .row {
+  display: flex;
+  gap: 6px;
+}
+
+.market-chart-page .crosshair-tooltip .lbl {
+  color: #768390;
+  /* 3em 正好容纳「涨跌幅」这三个最长标签。必须给宽度：标签长度不一致
+     （日期/开盘 2 字 vs 涨跌幅/成交量 3 字），加上占位空行**没有内容**，
+     不锁宽的话每行的值列起点会左右跳，不再成列。left = 题头贴浮窗左边。 */
+  min-width: 3em;
+  text-align: left;
+}
+
+.market-chart-page .crosshair-tooltip .val {
+  color: #adbac7;
+  font-weight: 500;
+  /* flex:1 是让 text-align:right 真正生效的前提：flex item 默认宽度=内容宽，
+     不占满剩余空间的话 right 对齐没有任何视觉变化。占满后所有行的值右边缘
+     都贴浮窗右边（日期行最长，浮窗宽度由它决定）。 */
+  flex: 1;
+  text-align: right;
+}
+
+/* 与昨收比较后的涨跌配色。取值沿用 ChartHeader 的 .header-quote.up/.down，
+   两处必须一致：涨红 #ef5350、跌绿 #26a69a（A 股习惯，与欧美相反）。
+   仅作用于「开盘价 ~ 涨跌价」这 6 行，成交量及以下不着色。 */
+.market-chart-page .crosshair-tooltip .val.up {
+  color: #ef5350;
+}
+
+.market-chart-page .crosshair-tooltip .val.down {
+  color: #26a69a;
+}
+
+/* 日期行：唯一没有题头的一行，整行居中当标题用。
+   flex:none + justify-content:center 是关键 —— 若沿用 .val 的 flex:1，
+   日期会占满整行宽度，text-align:center 等于没居中。 */
+.market-chart-page .crosshair-tooltip .row-date {
+  justify-content: center;
+}
+
+.market-chart-page .crosshair-tooltip .row-date .val {
+  flex: none;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* 除权标注行：浮窗里唯一一行「不是数字」的说明文字。
+   只有含除权的周期 bar 会出现。压暗 + 缩小是刻意的 ——
+   它是脚注不是数据，不该跟昨收/涨跌抢注意力。
+   .row 是 flex 容器，justify-content 要写在容器上而不是 .val（后者只是 span）。 */
+.market-chart-page .crosshair-tooltip .row-xdxr {
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.market-chart-page .crosshair-tooltip .row-xdxr .val {
+  flex: none;
+  color: #768390;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* ── 左键框选（区域选择）── */
+
+/* 框选矩形：蓝虚线 + 极淡填充，叠在 canvas 之上。
+   pointer-events: none 是硬要求 —— 它盖在 klinecharts 内层容器上方，
+   一旦吃事件，鼠标移到框里就不会再有十字线 hover。 */
+.market-chart-page .sel-box {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  border: 1px dashed #388bfc;
+  background: rgba(56, 139, 252, 0.06);
+  z-index: 3;
+}
+
+/* 框选完成后贴在框右下角的菜单。 */
+.market-chart-page .sel-menu {
+  position: absolute;
+  z-index: 4;
+  min-width: 74px;
+  padding: 3px 0;
+  background: #2d333b;
+  border: 1px solid #444c56;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(1, 4, 9, 0.5);
+}
+
+.market-chart-page .sel-menu-item {
+  padding: 4px 12px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #adbac7;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.market-chart-page .sel-menu-item:hover {
+  background: #373e47;
+  color: #e6edf3;
 }

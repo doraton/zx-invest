@@ -1,0 +1,63 @@
+/* ChartFrame —— 自写图表外壳。
+   2026-10-12 版面改造：header 行整条删除，头部内容搬进了右列，
+   腾出的 48px 还给 K 线区。现在只剩 body 一段，占满整个 frame。
+
+   --chart-right-w 由 ChartFrame.tsx 的 rightWidth prop 走 inline style 注入，
+   会覆盖下面这行声明 —— 改右列宽度要改 prop，不是改这里。 */
+
+.chart-frame {
+  --chart-right-w: 280px;
+
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr;
+  grid-template-columns: 1fr;
+
+  height: 100%;
+  min-height: 0;
+  background: #22272e;
+  border: 1px solid #373e47;
+  border-radius: 4px;
+  overflow: hidden;
+  color: #adbac7;
+  box-sizing: border-box;
+}
+
+/* ── body ────────────────────────────────────────────────────
+   header 行已于 2026-10-12 版面改造时删除，头部内容搬进右列。 */
+.chart-frame-body {
+  grid-column: 1 / -1;
+  min-height: 0;
+  min-width: 0;
+  /* chart-row 用了 position: absolute; inset: 0，必须有 relative 锚点 */
+  position: relative;
+}
+
+/* loading 覆盖层：absolute 钉在 body，不打乱 grid 链 */
+.chart-frame-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13, 17, 23, 0.7);
+  color: #768390;
+  z-index: 10;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+/* 错误提示：钉在 body 底部；right 让出 var(--chart-right-w) + padding */
+.chart-frame-error {
+  position: absolute;
+  bottom: 12px;
+  left: 16px;
+  right: calc(var(--chart-right-w) + 16px);
+  padding: 8px 12px;
+  background: rgba(239, 83, 80, 0.1);
+  color: #ef5350;
+  border: 1px solid rgba(239, 83, 80, 0.3);
+  border-radius: 4px;
+  font-size: 13px;
+  z-index: 20;
+}

@@ -1,0 +1,123 @@
+/* ── 区域统计弹窗（框选 K 线后点菜单里的「区域统计」）──
+   配色沿用全站深色底：弹窗面板 #2d333b（darkAntd.css 里已给 .ant-modal 定好），
+   内部用 #22272e 做输入框底、#373e47 画分隔线，与图表区同色系。 */
+
+/* 正文收紧一点：题头 12px + 密集网格，默认 24px padding 会显得很空。 */
+.region-stats-modal .ant-modal-body {
+  padding: 12px 16px 16px;
+}
+
+.rs-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+}
+
+/* 第一行：开始 [日期 ◀▶] 结束 [日期 ◀▶] 总个数: -- */
+.rs-range-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rs-range-label {
+  color: #8b949e;
+  white-space: nowrap;
+}
+
+.rs-range-value {
+  color: #e6edf3;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 日期框：内嵌深色块 + 右侧两个步进箭头。
+   箭头用图标组件而不是 ◀ ▶ 字符：实测这两个码位在当前字体下没有字形，
+   会 fallback 成彩色 emoji 方块（2026-10-11 截图确认）。
+   箭头先当纯展示（span），等步进逻辑接上再换 button。 */
+.rs-date {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  min-width: 108px;
+  padding: 0 2px 0 8px;
+  background: #22272e;
+  border: 1px solid #444c56;
+  border-radius: 3px;
+}
+
+.rs-date-text {
+  color: #e6edf3;
+  font-variant-numeric: tabular-nums;
+  margin-right: 2px;
+}
+
+.rs-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 100%;
+  color: #6e7781;
+  font-size: 9px;
+  user-select: none;
+}
+
+/* 主体两列：左列 6 行、右列 2 行。
+   用两个独立的列容器（flex），而不是一个 2 列 grid —— grid 默认行优先填充，
+   两列项数不同时会把右列的项顶到上一行去。
+   分隔线各管各的：纵向靠 .rs-col + .rs-col 的左边框（贯穿整列高），
+   横向靠 .rs-cell + .rs-cell —— 相邻兄弟只在**同一列内**成立，
+   所以每列最后一格下面都不会有线，右列第 2 格（下跌）下面是留白。 */
+.rs-cols {
+  display: flex;
+  border: 1px solid #373e47;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.rs-col {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.rs-col + .rs-col {
+  border-left: 1px solid #373e47;
+}
+
+.rs-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 10px;
+}
+
+.rs-cell + .rs-cell {
+  border-top: 1px solid #373e47;
+}
+
+.rs-cell-label {
+  color: #8b949e;
+  white-space: nowrap;
+}
+
+.rs-cell-value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 涨红跌绿，与 .crosshair-tooltip .val.up/.down 同一套色值。 */
+.rs-up {
+  color: #ef5350;
+}
+
+.rs-down {
+  color: #26a69a;
+}
+
+.rs-flat {
+  color: #e6edf3;
+}
