@@ -412,11 +412,59 @@ SCHEMA_STATEMENTS = [
     #
     # ⚠ 行不存在 = 用前端默认值。所以首次使用**不需要**预置种子行，
     #   空表也能正常工作。
+    #
+    # item_name 记的是「这个设置项是什么意思」，给人看的——直接 SELECT * 时
+    # 不用再翻代码才知道 chart_period=3 是季线。**真相源是 app_config.py 的
+    # ITEM_NAMES**，这一列是它的投影：upsert 时随值一起写，启动时回填。
+    # 不要手改这一列，下次启动就被覆盖回去了。
     """
     CREATE TABLE IF NOT EXISTS app_config (
         item_key   VARCHAR(64)  NOT NULL PRIMARY KEY,  -- 设置项名，如 show_price_line
         item_value VARCHAR(255) NOT NULL,               -- 值，统一存字符串，由前端解析
+        item_name  VARCHAR(128) NULL COMMENT '设置项含义（人读）；真相源是 app_config.ITEM_NAMES',
         updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+
+    # ---- 自选股（两张表，2026-10-14）----
+    #
+    # 为什么不是一张「自选 + 分组」表：一只股票可以同时属于多个分组
+    # （ChartHeader 的分组勾选弹窗就是多选），单表要么拆成 N 行、要么逗号分隔。
+    #
+    # 为什么没有第三张「自选本体」表：自选条目**自身不带任何数据**——
+    # name 不落库（统一从 /api/stock/list 解析，见 WatchlistPage 的 dbNames 回填），
+    # addedAt 全项目无人读取（grep web/src 只有 watchlist.ts 内部的写入和迁移逻辑）。
+    # 没有本体表，「票还在但不属于任何组」这种孤儿状态在数据上就**无法表示**，
+    # 删完某个组的关联行，票自然消失，不用额外判断「要不要连本体一起删」。
+    #
+    # 代价只有一个：一只票在 N 个组就有 N 个 added_at，列表要按「首次加入时间」
+    # 排序就得取 MIN。做法见 watchlist.list_all —— 不 GROUP BY，直接
+    # ORDER BY added_at, code 后在 Python 里首次出现即定序（与 market._to_bars
+    # 同一路子）。
+    """
+    CREATE TABLE IF NOT EXISTS watch_group (
+        id         VARCHAR(32)  NOT NULL COMMENT 'default 是兜底组「其他」；用户组形如 g_<时间戳>_<随机>',
+        label      VARCHAR(64)  NOT NULL COMMENT '分组显示名，同名由后端去重为「名称 (2)」',
+        created_at DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updated_at DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+
+    # 主键 (code, group_id) 同时承担「同一只票不能重复加进同一组」的幂等，
+    # 所以 add 用 INSERT IGNORE 即可，不必 ON DUPLICATE KEY。
+    #
+    # created_at / added_at 都是 DATETIME(3)：MySQL 的 datetime 不写小数秒就只有
+    # **秒**精度，同一秒建的两个分组、同一毫秒加的两只票排序就不定了，tab 会跳。
+    #
+    # idx_group 是反向索引：主键能答「这只票在哪些组」，它答「这个组有哪些票」。
+    """
+    CREATE TABLE IF NOT EXISTS watch_item (
+        code     VARCHAR(16) NOT NULL COMMENT '标的代码，大写带市场前缀 SH.600570；自研标的 0AMV 原样存。不建外键',
+        group_id VARCHAR(32) NOT NULL COMMENT 'watch_group.id',
+        added_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '加入该分组的时间；列表排序取它的 MIN',
+        PRIMARY KEY (code, group_id),
+        KEY idx_group (group_id, code)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 ]
@@ -425,6 +473,12 @@ SCHEMA_STATEMENTS = [
 # 而 MySQL 语法没有 ADD COLUMN IF NOT EXISTS，因此先查 information_schema 再决定。
 MIGRATIONS: list[tuple[str, str, str]] = [
     ("sync_state", "first_date", "DATE NULL"),
+    # 2026-10-14：app_config 补 item_name（设置项含义，给人读的）。
+    # 显式标 ALGORITHM=INSTANT —— MySQL 在不支持时会**静默回退**成 COPY，
+    # 表虽然是小表，但静默重写整张表正是最难排查的那类行为。
+    # 加一个可空、末尾的 VARCHAR 本来就属 INSTANT 能力范围。
+    ("app_config", "item_name",
+     "VARCHAR(128) NULL COMMENT '设置项含义（人读）；真相源是 app_config.ITEM_NAMES', ALGORITHM=INSTANT"),
     # 拼音首字母：键盘精灵要能输 "hsdz" 命中「恒生电子」。
     # 生成方式见 stock_repo.pinyin_initials（pypinyin），只依赖 stock_info.name，
     # 所以 name 被 sync_stock 覆盖后重跑一次回填脚本即可同步。

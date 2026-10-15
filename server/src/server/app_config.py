@@ -1,10 +1,12 @@
 """应用级配置（``app_config`` 表）的读写。
 
-一张 key-value 表，给前端的**显示类设置**持久化用 —— 目前只有一项：
-``show_price_line``（主图现价线显不显示）。纯内存 state 刷新页面就没了，
+一张 key-value 表，给前端的**显示类设置**和**图表口径**持久化用 —— 目前五项：
+``show_price_line``（主图现价线显不显示）、``top_ratio`` / ``right_ratio``
+（版面两条分界线的位置）、``chart_period`` / ``chart_adjust``
+（K 线周期与复权口径）。纯内存 state 刷新页面就没了，
 用户改过的设置得一次次手动改回去。
 
-两个关键约定：
+三个关键约定：
 
 1. **默认值不归这里管。** :func:`get_all` 只返回库里真实存在的键，
    没配过的键直接不出现在返回值里，由前端用自己的默认值兜底。
@@ -12,12 +14,62 @@
 
 2. **值统一以字符串落库。** 设置项类型各异（布尔 / 数字 / JSON），
    在库里不分列，读取时由 :func:`_parse` 尽量还原成 JSON 类型。
+
+3. **设置项的含义只有一个真相源：:data:`ITEM_NAMES`。**
+   库里 ``app_config.item_name`` 那一列只是它的**投影**，由
+   :func:`sync_item_names` 在启动时回填、由 :func:`upsert_all` 随值一起写。
+   不要手改那一列——下次启动就被覆盖回去了。
 """
 import json
 import logging
 from typing import Any
 
 from server import db
+
+#: 设置项名 -> 人读的含义。**这是 item_name 列的唯一真相源。**
+#:
+#: 新增设置项时**必须**在这里登记一行，否则那一行的 item_name 会是 NULL。
+#: 描述要写全：取值范围和默认值也写进去，免得看表的人还得翻前端代码
+#: （比如 chart_period=3 单看这个值是猜不出「季线」的）。
+ITEM_NAMES: dict[str, str] = {
+    "show_price_line": "主图现价线显不显示（true/false，默认 true）",
+    "top_ratio": "主图 pane 高占 K 线区的比例（0.25~0.65，默认 0.42）",
+    "right_ratio": "右列筹码区宽占 chart-row 行宽的比例（0.15~0.45，默认 0.225）",
+    "chart_period": "K 线周期，存 PERIOD_OPTIONS 下标：0=日线 1=周线 2=月线 3=季线 4=年线",
+    "chart_adjust": "复权口径：none=不复权 qfq=前复权 hfq=后复权（默认 none）",
+    # K 线配色（前端 utils/limitColor.ts 消费）。四个键各自独立存，缺省由前端兜底——后端不存默认值，见模块头约定 1。
+    "limit_color": "涨跌停 K 线变色开关（true/false，默认 false；仅主板 ±10%）",
+    "candle_up": "普通阳线颜色（hex，默认 #ef5350）",
+    "candle_down": "普通阴线颜色（hex，默认 #26a69a）",
+    "candle_limit_up": "涨停 K 线颜色（hex，默认 #FF3B30）",
+    "candle_limit_down": "跌停 K 线颜色（hex，默认 #34C759）",
+}
+
+
+async def sync_item_names() -> int:
+    """把 :data:`ITEM_NAMES` 回填进 ``item_name`` 列，返回实际更新的行数。
+
+    只有 name 与库里现值**不同**的行才会 UPDATE，所以：
+      - 幂等，启动时无脑调一次即可
+      - 改了 :data:`ITEM_NAMES` 的文案会自动传播到库里，不用手工刷数据
+      - 手工改过 item_name 的行会被这里覆盖回去（这是有意的，见模块头约定 3）
+
+    库里存在、但 :data:`ITEM_NAMES` 没登记的键**不动** —— 它是未知设置项，
+    留 NULL 比编一个假说明诚实。
+    """
+    if not ITEM_NAMES:
+        return 0
+    affected = 0
+    async with db.pool().acquire() as conn:
+        async with conn.cursor() as cur:
+            for key, name in ITEM_NAMES.items():
+                await cur.execute(
+                    """UPDATE app_config SET item_name = %s
+                       WHERE item_key = %s AND NOT (item_name <=> %s)""",
+                    (name, key, name),
+                )
+                affected += cur.rowcount
+    return affected
 
 
 def _parse(raw: str) -> Any:
@@ -96,10 +148,15 @@ async def upsert_all(values: dict[str, Any]) -> int:
         try:
             async with conn.cursor() as cur:
                 for key, value in values.items():
+                    # item_name 是 ITEM_NAMES 的投影：没登记的键存 NULL，
+                    # 而不是编一个假说明。未登记会在 sync_item_names 里被跳过，
+                    # 不会被覆盖成别的名字。
                     await cur.execute(
-                        """INSERT INTO app_config (item_key, item_value) VALUES (%s, %s)
-                           ON DUPLICATE KEY UPDATE item_value = VALUES(item_value)""",
-                        (str(key), _dump(value)))
+                        """INSERT INTO app_config (item_key, item_value, item_name) VALUES (%s, %s, %s)
+                           ON DUPLICATE KEY UPDATE item_value = VALUES(item_value),
+                                                   item_name = VALUES(item_name)""",
+                        (str(key), _dump(value), ITEM_NAMES.get(str(key))),
+                    )
                     # ⚠ aiomysql 的 cur.rowcount 是**普通 int 属性**，不是协程。
                     #   写成 `await cur.rowcount` 会报
                     #   "TypeError: 'int' object can't be awaited"，与 kline_repo /

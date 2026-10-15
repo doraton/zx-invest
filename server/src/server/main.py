@@ -13,7 +13,7 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from server import app_config, db, market, quote, stock_repo
+from server import app_config, db, market, quote, stock_repo, watchlist
 from server.external.tdx_kline import (
     PERIOD_DAY, PERIOD_MONTH, PERIOD_QUARTER, PERIOD_WEEK, PERIOD_YEAR,
 )
@@ -63,6 +63,17 @@ async def lifespan(app: FastAPI):
     try:
         await db.init_pool()
         await db.init_schema()
+        # item_name 列是 app_config.ITEM_NAMES 的投影，幂等回填一次。
+        # 改了 ITEM_NAMES 的文案不调它也能生效（启动时跑），
+        # 但这里显式调是为了不必等到下次启动才看到。
+        renamed = await app_config.sync_item_names()
+        if renamed:
+            print(f"[startup] app_config.item_name 已回填 {renamed} 行")
+        # 兜底组 default（"其他"）不是「没有就用前端默认值」的那种设置项：
+        # 自选条目的 group_id 是外键一样的引用，缺了这行整条链路都建不起来，
+        # 所以每次启动都幂等补一次。
+        if await watchlist.ensure_default_group():
+            print("[startup] 自选兜底分组 default 已补齐")
         print("[startup] MySQL 连接池就绪，表结构已校验")
     except Exception as e:
         print(f"[startup] MySQL 初始化失败（服务仍启动，接口会返回错误）: {e}")
@@ -265,6 +276,77 @@ async def put_app_config(payload: dict[str, Any]):
 @app.get("/health")
 async def health():
     return {"status": "ok", "db": await db.healthcheck()}
+
+
+# ---------------------------------------------------------------- 自选股
+#
+# 细粒度 REST，不用 PUT 全量覆盖：加一只票要重传整个自选的话，
+# 几十只票时既浪费又容易两个标签页互相覆盖。
+# 返回体统一 {"code": 0, "data": ...}，出错 {"code": 1, "error": "..."}。
+
+
+@app.get("/api/watchlist")
+async def get_watchlist():
+    """读全部分组 + 全部自选条目。
+
+    data = {groups: [{id, label}], items: [{code, groups: [groupId]}]}
+
+    - groups 里 default（"其他"）**恒存在且恒排最后**。
+    - items 的顺序是**首次加入时间**，不是 code 字母序。
+    - items 里**没有 name**：名称由前端从 /api/stock/list 统一解析
+      （见 WatchlistPage 的 dbNames 回填），不在自选表里存第二份。
+    """
+    try:
+        data = await watchlist.list_all()
+        return JSONResponse(content={"code": 0, "data": data})
+    except Exception as e:
+        return JSONResponse(content={"code": 1, "error": str(e)}, status_code=500)
+
+
+@app.post("/api/watchlist/items")
+async def post_watchlist_item(payload: dict[str, Any]):
+    """把一只票加进某个分组。body: {code, group}。
+
+    幂等：同一只票重复加进同一组返回 ``added: 0`` 而不是报错。
+    分组不存在返回 400 —— 不静默忽略，否则加自选会「看起来成功」、
+    刷新就没了，比报错难查得多。
+    """
+    try:
+        added = await watchlist.add_item(
+            str(payload.get("code") or ""),
+            str(payload.get("group") or watchlist.DEFAULT_GROUP_ID),
+        )
+        return JSONResponse(content={"code": 0, "data": {"added": added}})
+    except ValueError as e:
+        return JSONResponse(content={"code": 1, "error": str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse(content={"code": 1, "error": str(e)}, status_code=500)
+
+
+@app.delete("/api/watchlist/items/{code}")
+async def delete_watchlist_item(code: str, group: str | None = None):
+    """移除自选。不带 ``?group=`` 就是整只票移除。
+
+    只从某个分组摘掉时，摘完没别的组了这只票自然消失（没有本体表，
+    见 watchlist.py 模块头）。
+    """
+    try:
+        removed = await watchlist.remove_item(code, group)
+        return JSONResponse(content={"code": 0, "data": {"removed": removed}})
+    except Exception as e:
+        return JSONResponse(content={"code": 1, "error": str(e)}, status_code=500)
+
+
+@app.post("/api/watchlist/groups")
+async def post_watchlist_group(payload: dict[str, Any]):
+    """新建分组。body: {label}，返回去重后的 {id, label}。"""
+    try:
+        g = await watchlist.create_group(str(payload.get("label") or ""))
+        return JSONResponse(content={"code": 0, "data": g})
+    except ValueError as e:
+        return JSONResponse(content={"code": 1, "error": str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse(content={"code": 1, "error": str(e)}, status_code=500)
 
 
 if __name__ == "__main__":

@@ -69,6 +69,52 @@ export const PERIOD_OPTIONS: PeriodOption[] = [
  */
 export const DEFAULT_BAR_COUNT = 200;
 
+/* ──────────── 口径持久化（后端 app_config）────────────
+ *
+ * 周期和复权是用户每次打开都该看到上次那个值的「口径」，所以落库，
+ * 走已有的 GET/PUT /api/config。落库理由和 `utils/layout.ts` 的版面比例一样：
+ * **两处真相迟早漂移**。
+ *
+ * 库里没有这两个键 = 用户没改过 = 用上面的默认值（日线 / 不复权）。
+ * **默认值只存在这一份**，后端不存第二份（见 app_config.py 模块头的约定 1）。
+ */
+
+/** app_config 里对应的两个键。 */
+export const CHART_CONFIG_KEYS = {
+  period: 'chart_period',
+  adjust: 'chart_adjust',
+} as const;
+
+export const DEFAULT_PERIOD = PERIOD_OPTIONS[0];
+export const DEFAULT_ADJUST: AdjustType = 'none';
+
+/**
+ * 落库的 period = **PERIOD_OPTIONS 的下标**，不是 `period.type`。
+ *
+ * 因为月线和季线的 `type` **都是 'month'**（季线靠 `span: 3` 区分），
+ * 存 type 会把季线读成月线。下标稳定——PERIOD_OPTIONS 是常量不会增删。
+ */
+export function periodToConfig(p: PeriodOption): string {
+  const i = PERIOD_OPTIONS.indexOf(p);
+  // 找不到就退回默认值那条（0），绝不写一个查不回来的值。
+  return String(i >= 0 ? i : 0);
+}
+
+export function periodFromConfig(raw: unknown): PeriodOption {
+  // 后端 _parse 会把 "0" 这种字符串还原成数字，所以 number / string 都得认。
+  const n = typeof raw === 'string' ? Number(raw) : raw;
+  if (typeof n !== 'number' || !Number.isInteger(n)) return DEFAULT_PERIOD;
+  return PERIOD_OPTIONS[n] ?? DEFAULT_PERIOD;
+}
+
+export function adjustToConfig(a: AdjustType): string {
+  return a;
+}
+
+export function adjustFromConfig(raw: unknown): AdjustType {
+  return raw === 'qfq' || raw === 'hfq' || raw === 'none' ? raw : DEFAULT_ADJUST;
+}
+
 /** 上证/深证指数代码规则（A 股大盘指数统一编码），用于切换 "指数/个股" Tag。
  *
  *  点可有可无：`sh000001`（旧形态）和 `SH.000001`（2026-10-09 起的全库唯一

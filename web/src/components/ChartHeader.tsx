@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Select, Button, Modal, Checkbox, Slider } from 'antd';
+import { Select, Button, Modal, Checkbox, Slider, ColorPicker } from 'antd';
 import { HeartOutlined, HeartFilled, SettingOutlined } from '@ant-design/icons';
 import { isDailyOnly, type IndexInfo } from '../utils/indices';
+import { type CandleColors } from '../utils/limitColor';
 import {
   PERIOD_OPTIONS,
   ADJUST_OPTIONS,
@@ -11,7 +12,6 @@ import {
 import {
   TOP_RATIO_RANGE,
   RIGHT_RATIO_RANGE,
-  mainPaneHeight,
   type LayoutRatio,
 } from '../utils/layout';
 import { formatSymbolCode } from '../utils/formatCode';
@@ -58,9 +58,12 @@ export interface ChartToolsProps {
   onRatioPreview: (r: LayoutRatio) => void;
   /** Slider 松手时：写 app_config。 */
   onRatioCommit: (r: LayoutRatio) => void;
-  /** K 线区实测尺寸，用来把比例换算成像素显示给用户 */
-  areaH: number;
-  areaW: number;
+  /** 涨跌停变色开关。 */
+  limitColor: boolean;
+  setLimitColor: (v: boolean) => void;
+  /** K 线四种颜色（普通涨跌 / 涨跌停）。 */
+  colors: CandleColors;
+  setColor: (key: keyof CandleColors, value: string) => void;
 }
 
 /**
@@ -276,6 +279,33 @@ export function SymbolInfo({
 }
 
 /**
+ * 设置弹窗里的一行颜色选择（label + 色块 + hex）。
+ *
+ * 单独抽成组件是因为四行结构完全一样，内联要写四遍几乎相同的 JSX。
+ */
+function ColorPickerRow({ label, value, onChange, disabled }: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="settings-color-row">
+      <span className="settings-label">{label}</span>
+      <ColorPicker
+        value={value}
+        // onChange 传的是 AggregationColor 对象，不是 hex 字符串。
+        // toHexString() 取 #rrggbb；canvas 只认这个格式，rgb()/rgba() 会画不出来。
+        onChange={(c) => onChange(c.toHexString())}
+        disabled={disabled}
+        size="small"
+        presets={[]}
+      />
+    </div>
+  );
+}
+
+/**
  * 周期 / 复权 / 设置。2026-10-12 起浮在主图顶部右侧，跟 klinecharts 画在
  * canvas 上的 "MA20: xx" 图例同一行。
  *
@@ -300,8 +330,10 @@ export function ChartTools({
   ratio,
   onRatioPreview,
   onRatioCommit,
-  areaH,
-  areaW,
+  limitColor,
+  setLimitColor,
+  colors,
+  setColor,
 }: ChartToolsProps) {
   // 设置弹窗开关。state 留在本组件：Modal 挂在这里，位置在 overlay 内部，
   // 走 portal 后实际渲染到 body，不受 overlay 定位上下文影响。
@@ -311,12 +343,10 @@ export function ChartTools({
   // 其余周期会让后端 query_klines 抛错，这里直接把选项置灰。
   const dailyOnly = isDailyOnly(currentIndex.code);
 
-  // 比例 → 像素，只为在 Slider 右侧显示「实际生效值」。
-  // 真值由 klinecharts 按自己的余数分配算出，这里用的是同一套公式
-  // （utils/layout.ts 的 mainPaneHeight，和 setPaneOptions 喂进去的是同一条路径）。
-  const mainPx = mainPaneHeight(areaH, ratio.topRatio);
-  const rightPx = Math.round(areaW * ratio.rightRatio);
+  // 比例 → 百分号展示。右侧跟的是**可拖的范围**（直接取 Slider 的 min/max，
+  // 不另抄一份常量，改范围时不会和实际可拖范围漂），不是换算出来的像素。
   const pct = (v: number) => `${Math.round(v * 1000) / 10}%`;
+  const rangeText = (r: [number, number]) => `${pct(r[0])}~${pct(r[1])}`;
 
   return (
     <div className="chart-tools" onKeyDown={(e) => e.stopPropagation()}>
@@ -380,7 +410,7 @@ export function ChartTools({
             tooltip={{ formatter: (v) => pct(v ?? 0) }}
           />
           <span className="settings-value">
-            {pct(ratio.topRatio)} · {mainPx}px
+            {pct(ratio.topRatio)} · {rangeText(TOP_RATIO_RANGE)}
           </span>
         </div>
         <div className="settings-row">
@@ -396,12 +426,37 @@ export function ChartTools({
             tooltip={{ formatter: (v) => pct(v ?? 0) }}
           />
           <span className="settings-value">
-            {pct(ratio.rightRatio)} · {rightPx}px
+            {pct(ratio.rightRatio)} · {rangeText(RIGHT_RATIO_RANGE)}
           </span>
         </div>
         <div className="settings-hint">
           横线 = 主图与副图的分界，竖线 = K 线与右列的分界。
           左下四个副图平分高度，右上两列平分宽度。
+        </div>
+
+        <div className="settings-divider" />
+
+        <div className="settings-group-title">K 线颜色</div>
+        <Checkbox
+          checked={limitColor}
+          onChange={(e) => setLimitColor(e.target.checked)}
+        >
+          涨跌停变色
+        </Checkbox>
+        <div className="settings-hint settings-hint-tight">
+          仅主板（沪60 / 深00）。创业板、科创板 ±20%，ST ±5%，暂不识别。
+        </div>
+        {/* 四个色块：普通涨跌随时可调，涨跌停两色仅在开关打开时生效
+            （关着时改它们不会有任何视觉变化，与其让人困惑，不如置灰）。 */}
+        <div className={limitColor ? 'settings-colors' : 'settings-colors is-disabled'}>
+          <ColorPickerRow label="上涨" value={colors.up}
+            onChange={(v) => setColor('up', v)} />
+          <ColorPickerRow label="下跌" value={colors.down}
+            onChange={(v) => setColor('down', v)} />
+          <ColorPickerRow label="涨停" value={colors.limitUp} disabled={!limitColor}
+            onChange={(v) => setColor('limitUp', v)} />
+          <ColorPickerRow label="跌停" value={colors.limitDown} disabled={!limitColor}
+            onChange={(v) => setColor('limitDown', v)} />
         </div>
       </Modal>
     </div>

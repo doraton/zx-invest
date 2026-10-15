@@ -405,7 +405,7 @@ web/src/
 │   ├── chartOptions.ts     # PERIOD / RANGE（RightPanelMode 已随筹码切换器删除）
 │   ├── layout.ts           # 版面比例常量与反推公式（落库 app_config）
 │   ├── exDividendMarkers.ts# klinecharts 自定义除权标记 overlay
-│   ├── watchlist.ts        # 自选股 + 分组（localStorage）
+│   ├── watchlist.ts        # 自选股 + 分组（内存 store，数据落库 watch_group/watch_item）
 │   ├── stockSearch.ts      # → /api/stock/search
 │   └── formatCode.ts       # sh000001 → SH.000001
 └── config/
@@ -431,6 +431,10 @@ web/src/
 | GET | `/api/admin/status` | 同步进度 / 健康度 |
 | GET | `/api/config` | 读应用级设置（只返回库里真实存在的键） |
 | PUT | `/api/config` | 写应用级设置（只 upsert 传进来的键，不删） |
+| GET | `/api/watchlist` | 读全部分组 + 自选条目（`default` 恒排最后；条目顺序 = 首次加入时间） |
+| POST | `/api/watchlist/items` | 加自选 `{code, group}`，幂等 |
+| DELETE | `/api/watchlist/items/{code}?group=` | 移除；不给 `group` 就是整只移除 |
+| POST | `/api/watchlist/groups` | 新建分组 `{label}`，返回去重后的 `{id, label}` |
 | GET | `/health` | 健康检查（含 db 连通）——**不走** `{code,data}` 包装 |
 
 返回结构：`{ code: 0, data: ... }` / 失败 `{ code: 1, error: ... }`；
@@ -470,6 +474,8 @@ K 线每根字段（11 个）：
 | `stock_finance` | 0 | ❌ 空表，Tushare 权限不足 |
 | `stock_xdxr` | 47 | 2004-06-04 ~ 2026-09-30，其中 **23 条**对应真正的除权除息，其余为股本变化等中间态 |
 | `app_config` | 3 | 前端显示类设置（`show_price_line` / `top_ratio` / `right_ratio`） |
+| `watch_group` | 1 | 自选分组（只有兜底组 `default`「其他」） |
+| `watch_item` | 0 | 自选条目 ↔ 分组（2026-10-14 建表，暂无数据） |
 
 补数据：
 

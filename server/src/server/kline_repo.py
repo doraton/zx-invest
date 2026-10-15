@@ -163,6 +163,14 @@ async def materialize_periods(code: str, periods: tuple[str, ...] = DERIVED_PERI
             written = await materialize_periods_on(
                 cur, code, periods, print_fn=None)
             out.update(written)
+        # ⚠️ 必须提交。aiomysql 默认 autocommit=False，连接归还池时未提交事务会被
+        #    **回滚**——本函数原来根本没 commit，单独调用等于什么都没做
+        #    （库里那些行是 tools/sync_tushare.py 调 materialize_periods_on 之后
+        #    自己 commit 才落下去的）。
+        #    物化改成「先 DELETE 再 INSERT」之后这一步成了**要害**：
+        #    不提交就会连 DELETE 一起回滚，状态反而是安全的；
+        #    但只要哪天有人把 DELETE 挪到事务外单独执行，缺 commit 就是丢数据。
+        await conn.commit()
     return out
 
 
@@ -170,6 +178,15 @@ async def materialize_periods_on(cur, code: str,
                                  periods: tuple[str, ...] = DERIVED_PERIODS,
                                  print_fn=None) -> dict:
     """在**已有 cursor** 上跑物化，供 tools/sync_tushare.py 复用同一份 SQL。
+
+    物化方式是「**先清空该周期、再从日线全量重建**」，不是增量 upsert。
+    原因见 :func:`_materialize_sql` 末尾的说明：桶的 ``trade_date`` 是
+    **桶内最后一个交易日**，本周每多一个交易日，桶尾就变一次，
+    「按 (code, period, trade_date) upsert」会把每一版都留成独立行 ——
+    一天一行，一周五行，接口于是返回同一周五根假 K 线。
+
+    全删全插在 1542 行这个量级上是毫秒级，换来的是「表里永远是当前桶集合」
+    这一条不用维护的保证。真相源是日线，删掉的每一行都会原样重建。
 
     :param print_fn: 可选的进度回调（sync_tushare 要打印每周期行数）。
     """
@@ -179,13 +196,19 @@ async def materialize_periods_on(cur, code: str,
         bucket = PERIOD_BUCKET_SQL.get(period)
         if bucket is None:
             raise ValueError(f"不支持的派生周期: {period!r}")
-        sql = _materialize_sql(db.kline_table(period), src, bucket)
+        dst = db.kline_table(period)
+        # DELETE 与 INSERT 在**同一个游标、同一事务**里：中途抛异常会连 DELETE
+        # 一起回滚，派生周期表保持调用前的状态，不会出现「清空了但没重建」。
+        await cur.execute(
+            f"DELETE FROM {dst} WHERE code=%(code)s AND period=%(period)s",
+            {"code": code, "period": period})
+        sql = _materialize_sql(dst, src, bucket)
         # 具名占位符，顺序无所谓（见 _EX_FACTOR_CTE 的警告）。
         await cur.execute(sql, {"code": code, "period": period})
-        # ⚠️ rowcount 不是「写入行数」：ON DUPLICATE KEY UPDATE 下插入记 1、
-        #    更新记 2、**值没变记 0**。全量重算时几乎全是更新，数字会翻倍；
-        #    而最早那个桶的三列本来就是 NULL，它的更新就是 0。
-        #    要真实行数请 COUNT 目标表，别拿这个返回值当账。
+        # 物化改成「先删后插」后，rowcount 就是**真实写入行数**了 ——
+        # 此前那句「不是写入行数」的警告只对 upsert 成立
+        #（ON DUPLICATE KEY UPDATE 下更新记 2、值没变记 0，会翻倍或归零）。
+        # 全删全插不再有重复键，行数与 COUNT 目标表必然一致。
         n = max(cur.rowcount, 0)
         out[period] = n
         if print_fn:

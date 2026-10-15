@@ -255,6 +255,58 @@
   margin-top: 2px;
 }
 
+/* 紧跟 checkbox 的补充说明（涨跌停的适用范围），比普通 hint 少一点上边距 */
+.settings-hint-tight {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+/* ──────── K 线颜色：四个色块，两列 ────────
+   布局（2026-10-14 按用户要求调整）：
+       上涨 [■]   涨停 [■]
+       下跌 [■]   跌停 [■]
+   左列是普通涨跌（一直生效），右列是涨跌停（受上方开关控制）。
+   用 grid 而不是两行 flex：两行 flex 会变成
+   「上涨 下跌 / 涨停 跌停」，跟要的「上涨 涨停 / 下跌 跌停」正好错位。 */
+.settings-colors {
+  display: grid;
+  /* grid-auto-flow: column + 两行 = 按**列**填充：
+     上涨→(1,1) 下跌→(2,1) 涨停→(1,2) 跌停→(2,2)。
+     默认的 row 填充会排成「上涨 下跌 / 涨停 跌停」，与要求的左右分组相反。 */
+  grid-template-rows: auto auto;
+  grid-auto-flow: column;
+  column-gap: 16px;
+  margin-top: 10px;
+}
+
+/* 开关关着时右列（涨跌停）不生效，压暗提示——比留着能点却没反应更诚实。
+   nth-child(n+3) 命中的正是 涨停 / 跌停 两行。
+   不用 pointer-events: none，是为了让置灰的 ColorPicker 仍能显示 tooltip。 */
+.settings-colors.is-disabled .settings-color-row:nth-child(n + 3) {
+  opacity: 0.4;
+}
+
+.settings-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* ColorPicker 的触发器带 hex 文本（#FF3B30 这种 7 字符），两列各占一半宽度
+   时容易撑破。nowrap + 溢出隐藏让它在窄列里也不换行，色值超长时截断显示。 */
+.settings-color-row .ant-color-picker-trigger {
+  flex: 1;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.settings-color-row .settings-label {
+  width: 28px;
+  flex-shrink: 0;
+}
+
 /* ──────── 添加到自选：分组选择 dropdown ────────
    弹窗是 fixed 定位的独立 div（不再用 antd Popover——因为 Popover 的 trigger
    在受控 open 模式下不稳定，事件链路容易丢失），锚定在爱心按钮正下方。

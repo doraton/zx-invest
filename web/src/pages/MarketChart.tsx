@@ -4,8 +4,22 @@ import type { Chart, Coordinate, IndicatorFigure, KLineData as KCKLineData } fro
 import { init, dispose } from 'klinecharts';
 import { INDICES, isDailyOnly, type IndexInfo } from '../utils/indices';
 import {
+  DEFAULT_CANDLE_COLORS,
+  applyCandleColors,
+  colorConfigKey,
+  colorsFromConfig,
+  registerLimitColorIndicator,
+  setLimitColorEnabled,
+  type CandleColors,
+} from '../utils/limitColor';
+import {
   PERIOD_OPTIONS,
   DEFAULT_BAR_COUNT,
+  CHART_CONFIG_KEYS,
+  periodToConfig,
+  periodFromConfig,
+  adjustToConfig,
+  adjustFromConfig,
   type AdjustType,
   type PeriodOption,
 } from '../utils/chartOptions';
@@ -503,9 +517,20 @@ export default function MarketChart(props: Props) {
   // 默认值只存在**这一份**，后端 app_config 表里没有这一行 = 用户没改过 = true。
   // （库里存的是 'true'/'false' 字符串，后端读出来已经是布尔，见 app_config._parse。）
   const [showPriceLine, setShowPriceLine] = useState(true);
+  // 涨跌停变色开关。**默认关**（与 showPriceLine 相反——那个缺省 true，这个缺省 false），
+  // 判定逻辑见 utils/limitColor.ts 文件头。
+  const [limitColor, setLimitColorState] = useState(false);
+  // K 线四种颜色（普通涨跌 + 涨跌停）。同样默认关时也可用：改普通涨跌色立刻生效，
+  // 涨跌停两色要等开关打开才看得见。
+  const [colors, setColors] = useState<CandleColors>(DEFAULT_CANDLE_COLORS);
   // 配置还在路上时先别动 chart：用户存的是 false 的话，
   // 先按默认 true 画一帧再关掉会闪一下。拿到值再一次性应用。
   const configLoadedRef = useRef(false);
+  // 同样的门闩，但这个要**能触发渲染**——它同时门住 chart 初始化 effect。
+  // 周期 / 复权落库后，chart 绝不能在配置回来之前就按默认口径取数：
+  // 那会多打一次 500 根的请求，还闪一帧错口径，跟「打开就跟上回一样」相反。
+  // ref 不行（改了不渲染），所以这里是 state。
+  const [configLoaded, setConfigLoaded] = useState(false);
   // 主图十字线位置：
   //   - 有值（非 null） → 用 [0, index] 的 K 线算历史筹码分布（成本分布演化）
   //   - null           → 鼠标不在图表上，筹码图默认显示"最新一个交易日"
@@ -529,8 +554,10 @@ export default function MarketChart(props: Props) {
   useEffect(() => { periodRef.current = period; }, [period]);
   useEffect(() => { adjustRef.current = adjust; }, [adjust]);
 
-  // 现价线开关落到 klinecharts 样式上。
-  // 必须挂在 chart 初始化 effect **之后**（effect 按声明顺序执行，chartRef 在上面
+  // 现价线开关落到 klinecharts 样式上。**只管用户切换之后的那些变更**——
+  // 首次应用在下面的 chart 初始化 effect 里（那一版才有 chart 可改）。
+  //
+  // 必须挂在 chart 初始化 effect **之后**（effect 按声明顺序执行，chartRef 在下面
   // 那个 effect 里才被赋值），这里返回的 chart 已经存在。setStyles 内部会重画，
   // 不用自己再 chart.resize()。
   //
@@ -552,6 +579,49 @@ export default function MarketChart(props: Props) {
       // 因为它失败就让用户的操作看着"没生效"反而更糟。
     });
   };
+
+  /* ─────────────── K 线颜色 / 涨跌停变色 ─────────────── */
+
+  /** 改色后重画。挂 [colors] 而非 [limitColor]：开关切换只需要增删指标，
+   *  配色由 applyCandleColors 在同一个 effect 里顺手重刷一次即可。 */
+  useEffect(() => {
+    if (!configLoadedRef.current) return;
+    const chart = chartRef.current;
+    if (!chart) return;
+    applyCandleColors(chart, colors);
+    setLimitColorEnabled(chart, limitColor);
+  }, [colors, limitColor]);
+
+  /** 涨跌停开关 → 改状态 + 落库。默认关，缺省即 false。 */
+  const onLimitColorChange = (v: boolean) => {
+    setLimitColorState(v);
+    saveConfig({ limit_color: v }).catch(() => {});
+  };
+
+  /** 改单个颜色 → 改状态 + 落库。四个键各自独立存，缺省由前端兜底。 */
+  const onColorChange = useCallback((key: keyof CandleColors, value: string) => {
+    setColors((prev) => ({ ...prev, [key]: value }));
+    saveConfig({ [colorConfigKey(key)]: value }).catch(() => {});
+  }, []);
+
+  /* ─────────────── 周期 / 复权：改状态 + 落库 ─────────────── */
+  /** 用户切周期 → 立刻落到后端 app_config（chart_period = PERIOD_OPTIONS 下标）。
+   *
+   *  传的是包装过的这个，不是原始 setPeriod——上面 isDailyOnly 那个 effect
+   *  强拉回日线时走的是原始 setState，不该把那种「纠正」当成用户选择存进去。
+   *
+   *  存失败不回滚界面，理由同 onShowPriceLineChange：刷新后回到库里旧值即可，
+   *  让用户眼前的选择看着"没生效"更糟。 */
+  const onPeriodChange = useCallback((p: PeriodOption) => {
+    setPeriod(p);
+    saveConfig({ [CHART_CONFIG_KEYS.period]: periodToConfig(p) }).catch(() => {});
+  }, []);
+
+  /** 用户切复权 → 落到 app_config（chart_adjust）。同上，不回滚。 */
+  const onAdjustChange = useCallback((a: AdjustType) => {
+    setAdjust(a);
+    saveConfig({ [CHART_CONFIG_KEYS.adjust]: adjustToConfig(a) }).catch(() => {});
+  }, []);
 
   /* ─────────────── 版面比例：比例 → 像素 ─────────────── */
 
@@ -676,25 +746,66 @@ export default function MarketChart(props: Props) {
         // 库里没有这两个键 = 用户没改过 = 保持默认值。
         // 比例只影响布局不影响数据，所以不必像周期那样等它回来才发请求。
         applyRatio(ratioFromConfig(cfg));
-        // 值跟默认值相同时 setState 不会触发重渲染，上面那个 effect 也就不会跑，
-        // 所以这里必须直接补一次应用，否则「存的就是 true」这条路永远画不出来。
-        const chart = chartRef.current;
-        if (chart) setLastPriceMarkVisible(chart, value);
+        // 周期 / 复权（2026-10-14 落库）——这两项**决定取什么数据**，
+        // 所以必须和 configLoaded 一起在同一次更新里落下去，
+        // chart 初始化 effect 靠 configLoaded 放行，读到的一定是这两个新值。
+        setPeriod(periodFromConfig(cfg[CHART_CONFIG_KEYS.period]));
+        setAdjust(adjustFromConfig(cfg[CHART_CONFIG_KEYS.adjust]));
+        // K 线配色 + 涨跌停开关。同样必须在 configLoaded 之前落定：
+        // chart 初始化 effect 靠它放行，那一版渲染要拿到库里的颜色。
+        // 涨跌停开关是「缺省关」，所以用 `=== true` 而不是 `!== false`
+        // ——写反了会让所有用户一打开就是开着的。
+        setLimitColorState(cfg.limit_color === true);
+        setColors(colorsFromConfig(cfg));
+        setConfigLoaded(true);
+        // ⚠️ 这里**不能**再直接改 chart 的样式了：chart 初始化 effect 被 configLoaded
+        // 门闩挡住（见下面），此刻 chartRef.current 还是 null。
+        // 现价线的首次应用已经挪进那个 init effect —— 它跑的那一版渲染里
+        // showPriceLine 正好就是这里 setShowPriceLine 的新值。
       })
       .catch(() => {
         if (cancelled) return;
         // 读不到就用默认值，别把图卡住不放。顺手放开门闩，
         // 后面用户手动切开关时仍然能生效。
         configLoadedRef.current = true;
+        setConfigLoaded(true);
       });
     return () => { cancelled = true; };
   }, [applyRatio]);
 
-  // 初始化 chart 实例（仅一次）
+  // 初始化 chart 实例（configLoaded 之后的那一次，等价于「仅一次」）
+  //
+  // ⚠️ 这里必须等 app_config 回来。周期 / 复权已落库，而它们决定 getBars 去取什么数据；
+  // 先按默认的「日线 + 不复权」画一帧、配置回来再重取，不仅多打一次 500 根请求，
+  // 还会闪一帧错口径——正好抵消了持久化的意义。
+  //
+  // 依赖里的 configLoaded 只从 false 翻一次到 true，所以这个 effect 实质仍只跑一次。
+  // 读 periodRef / adjustRef 时它们已是新值：同一次更新里 setPeriod/setAdjust 先落地，
+  // 而上面同步 ref 的两个 effect 声明在本 effect 之前，按声明顺序先跑。
+  //
+  // showPriceLine 同理：它在上面那个 effect 里和 configLoaded **同一次 setState**，
+  // 所以这里读到的闭包值就是库里的值。**不能**把它加进依赖——那会因用户
+  // 勾选现价线而整个重建 chart。现价线的后续切换走上面那个 [showPriceLine] effect。
   useEffect(() => {
+    if (!configLoaded) return;
     if (!containerRef.current) return;
     const chart = init(containerRef.current, { styles: DARK_THEME as never });
     if (!chart) return;
+
+    // 现价线的**首次**应用必须在这里，不能留在读配置的 .then 里：
+    // 那个时刻 chart 还不存在（就是被本 effect 的 configLoaded 门闩挡着的），
+    // 那一版渲染按 DARK_THEME 的默认值（show: true）画完就再没人管过了——
+    // 症状是「勾选框没勾，现价线却画着」。
+    setLastPriceMarkVisible(chart, showPriceLine);
+
+    // K 线配色 + 涨跌停着色的**首次**应用，理由同现价线：
+    // 这个时刻是 chart 唯一存在的机会，不在这里设就没人再管了
+    //（症状：设置里改了颜色，刷新后第一帧仍是 DARK_THEME 的默认值）。
+    // 着色指标必须**先注册再创建**——registerIndicator 写的是全局注册表，
+    // 名字重复注册会被 klinecharts 忽略，所以只在 chart 初始化时调一次。
+    applyCandleColors(chart, colors);
+    registerLimitColorIndicator(() => currentIndexRef.current.code);
+    setLimitColorEnabled(chart, limitColor);
 
     // X 轴**十字线标签**（跟随光标那个带底色的日期）改成跟悬浮窗日期行一样的
     // 「2026/08/07周五」。它由 klinecharts 内建，默认走 PeriodTypeCrosshairTooltipFormat
@@ -1187,7 +1298,7 @@ export default function MarketChart(props: Props) {
       if (containerRef.current) dispose(containerRef.current);
       chartRef.current = null;
     };
-  }, []);
+  }, [configLoaded]);
 
   // 除权标记的 overlay 模板 + 点击回调。挂载时做一次就够：
   // 模板注册走模块级 registered 幂等保护，点击回调只用到两个 setState（引用恒定）。
@@ -1459,16 +1570,18 @@ export default function MarketChart(props: Props) {
             <ChartTools
               currentIndex={currentIndex}
               period={period}
-              setPeriod={setPeriod}
+              setPeriod={onPeriodChange}
               adjust={adjust}
-              setAdjust={setAdjust}
+              setAdjust={onAdjustChange}
               showPriceLine={showPriceLine}
               setShowPriceLine={onShowPriceLineChange}
+              limitColor={limitColor}
+              setLimitColor={onLimitColorChange}
+              colors={colors}
+              setColor={onColorChange}
               ratio={ratio}
               onRatioPreview={applyRatio}
               onRatioCommit={handleRatioCommit}
-              areaH={areaSize.h}
-              areaW={areaSize.w}
             />
 
             {/* 自绘的十字线悬浮 OHLC 浮窗：替代 klinecharts 默认的 candle.tooltip。

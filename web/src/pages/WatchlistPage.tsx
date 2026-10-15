@@ -111,10 +111,11 @@ export default function WatchlistPage() {
 
   // 自选条目的 name **以数据库为准**（code -> 库里查到的名称）。
   //
-  // 为什么不能直接用 localStorage 里的那份：加自选那一刻的 name 会被冻进
-  // localStorage，而 0AMV 早期加进去时后端还没返回名称，addWatch 存进去的
-  // 就是 code 本身。列表渲染成 `it.name` / `formatSymbolCode(it.code)` 两行，
-  // 于是上下两行都是 `0AMV`——看起来像"两处都是代码"。
+  // 自选表 2026-10-14 起落库时**根本不存 name**（utils/watchlist.ts 的 WatchItem
+  // 里那份只是内存里的尽力而为副本），所以这里必须补一次权威名称。
+  // 历史教训：曾经 name 是加自选那一刻冻进 localStorage 的，而 0AMV 早期加进去
+  // 时后端还没返回名称，addWatch 存进去的就是 code 本身，列表渲染成
+  // `it.name` / `formatSymbolCode(it.code)` 两行，于是上下两行都是 `0AMV`。
   //
   // /api/stock/list 一条 SQL 同时吐出 stock_info 和 index_info 两张名录的
   // name，所以一次请求就够覆盖全部自选，不必逐个 searchStocks。
@@ -128,14 +129,12 @@ export default function WatchlistPage() {
         if (!alive || j?.code !== 0 || !Array.isArray(j.data)) return;
         const map: Record<string, string> = {};
         for (const row of j.data) {
-          // 归一再存：list 接口对个股给 SH.600570，而老自选里可能存着
-          // sh600570，不归一会查不中（名字仍旧退化成一串代码）。
           if (row?.code && row?.name) map[canonicalCode(row.code)] = row.name;
         }
         setDbNames(map);
       })
       .catch(() => {
-        /* 查不到就沿用 localStorage 里那份，不阻塞渲染 */
+        /* 查不到就沿用内存里那份，不阻塞渲染 */
       });
     return () => {
       alive = false;
@@ -287,13 +286,17 @@ export default function WatchlistPage() {
     };
   }, [items]);
 
-  /** 提交新建分组：trim 后非空才调用 createUserGroup，刷新本地缓存与当前选中 tab。 */
-  const handleCreateGroup = () => {
+  /** 提交新建分组：trim 后非空才调 createUserGroup，刷新本地缓存与当前选中 tab。
+   *
+   *  createUserGroup 自 2026-10-14 起是**异步**的：分组 id 改由后端生成
+   *  （前端造 id 有碰撞风险，且只有后端能看见全部分组，同名去重也得在那边做）。
+   *  await 之前不能 setGroup——那时还没有 g.id。 */
+  const handleCreateGroup = async () => {
     const label = newGroupLabel.trim();
     if (!label) return;
     let g: WatchGroup;
     try {
-      g = createUserGroup(label);
+      g = await createUserGroup(label);
     } catch (e) {
       window.alert((e as Error).message || '新建分组失败');
       return;

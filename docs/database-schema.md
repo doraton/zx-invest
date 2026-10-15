@@ -23,14 +23,14 @@
 
 ---
 
-## 1. 九张表速查
+## 1. 十一张表速查
 
-> 行数为 2026-10-13 实测快照（`SHOW TABLES` + `COUNT(*)`）。
+> 行数为 2026-10-14 实测快照（`SHOW TABLES` + `COUNT(*)`）。
 
 | 表 | 行数 | 列数 | 职责 | 状态 |
 |---|---|---|---|---|
 | `kline_day` | 5435 | 13 | **日线，唯一真相源** | ✅ 全历史已灌满 |
-| `kline_period` | 1542 | 14 | 周/月/季/年线（物化） | ✅ 已物化，列序对齐 `kline_day` |
+| `kline_period` | 1542 | 13 | 周/月/季/年线（物化） | ✅ 已物化 |
 | `kline_0amv` | 8220 | 10 | 指南针 0AMV 日线 | ✅ 独立 DDL，列齐备 |
 | `app_config` | 3 | 3 | 应用级设置（key-value） | ✅ 前端显示类设置持久化 |
 | `index_info` | 6 | 8 | 指数 / 指标**名录** | ⚠️ 只有名录，无行情表 |
@@ -38,9 +38,12 @@
 | `stock_xdxr` | 47 | 13 | 除权除息事件 | ✅ `SH.600570` 47 行 |
 | `stock_finance` | 0 | 21 | 财务快照 | ❌ 空，权限不足 |
 | `sync_state` | 1 | 7 | 增量水位 | ✅ 无孤儿 |
+| `watch_group` | 1 | 4 | 自选分组 | ✅ 只有兜底组 `default` |
+| `watch_item` | 0 | 3 | 自选条目 ↔ 分组 | ✅ 表已建，尚未加自选 |
 
 **列注释（COMMENT）覆盖实测**：`kline_day` 6/13、`kline_0amv` 4/10、`kline_period` **1/14**，
-其余 6 张为 **0**。`kline_day` 的 `open/high/low/close/pre_close/chg_amt/chg_pct` 六列无注释，
+`watch_group` / `watch_item` **全部齐备**，其余 6 张为 **0**。
+`kline_day` 的 `open/high/low/close/pre_close/chg_amt/chg_pct` 六列无注释，
 `kline_period` 只有 `code` 一列有 —— 见 §6 欠账。
 
 ### 1.1 当前数据分布
@@ -304,7 +307,8 @@ PRIMARY KEY (code, report_date)
 
 ```sql
 PRIMARY KEY (item_key)
--- item_key VARCHAR(64) / item_value TEXT / updated_at TIMESTAMP（DEFAULT CURRENT_TIMESTAMP ON UPDATE）
+-- item_key VARCHAR(64) / item_value VARCHAR(255) NOT NULL
+-- item_name VARCHAR(128) NULL / updated_at TIMESTAMP（DEFAULT CURRENT_TIMESTAMP ON UPDATE）
 ```
 
 一张 key-value 表，给前端的**显示类设置**做持久化（localStorage 会在换浏览器/清缓存时丢，
@@ -317,11 +321,100 @@ PRIMARY KEY (item_key)
 | `show_price_line` | 主图现价线显不显示（bool） |
 | `top_ratio` | 主图占 K 线区的比例（float，范围 0.25~0.65，默认 0.42） |
 | `right_ratio` | 右列占行宽的比例（float，范围 0.15~0.45，默认 0.225） |
+| `chart_period` | K 线周期（**`PERIOD_OPTIONS` 的下标**，字符串 `"0"`~`"4"`，默认 `"0"` 日线）—— 2026-10-14 加 |
+| `chart_adjust` | 复权口径（`none` / `qfq` / `hfq`，默认 `none`）—— 2026-10-14 加 |
+
+`item_name` 列（2026-10-14 加）记的是「这个设置项是什么意思」，给人看的——
+直接 `SELECT *` 时不用翻代码就知道 `chart_period=3` 是季线。
+
+**这一列的真相源是 `app_config.py` 的 `ITEM_NAMES` 字典**，库里存的是它的投影：
+`upsert_all` 随值一起写，`sync_item_names()` 在启动时幂等回填（只有与现值不同才 UPDATE）。
+新增设置项**必须**在 `ITEM_NAMES` 登记一行，否则那行的 `item_name` 是 NULL；
+手工改这一列会被下次启动覆盖回去。库里存在但没登记的键保持 NULL——是未知设置项，
+留 NULL 比编一个假说明诚实。
 
 ⚠️ 两条约定：`GET` **只返回库里真实存在的键**，没配过的直接不出现在返回值里，
 由前端用自己的默认值兜底（后端再存一份默认值就成了两处真相）；
 `PUT` 只 upsert 传进来的键，**不删**没传的。前端 Slider 因此必须拆
 `onChange`（本地预览）/ `onChangeComplete`（落库），否则一次拖动会发几十个 PUT。
+
+**`chart_period` 存下标而不是 `period.type`**：月线与季线的 `type` **都是 `'month'`**
+（季线靠 `span: 3` 区分，见 `web/src/utils/chartOptions.ts`），存 type 会把季线读成月线。
+另注意 `_parse` 会把 `"0"` 这种字符串还原成**整数**，所以前端 `periodFromConfig`
+number / string 两种都得认。
+
+⚠️ 这两个键与 `top_ratio` / `right_ratio` 不同：比例只影响布局，而**周期与复权决定取什么数据**。
+所以 `MarketChart` 的 chart 初始化 effect 必须等 `fetchConfig` 回来才放行
+（`configLoaded` state 门闩），否则会先按默认的「日线 + 不复权」发一次 500 根请求、
+再按库里口径重取一次——多一次请求，还闪一帧错口径，正好抵消持久化的意义。
+
+### 3.7 `watch_group` + `watch_item` — 自选股 ✅ 2026-10-14 新增
+
+```sql
+CREATE TABLE watch_group (
+    id, label, created_at DATETIME(3), updated_at DATETIME(3),
+    PRIMARY KEY (id)
+);
+CREATE TABLE watch_item (
+    code, group_id, added_at DATETIME(3),
+    PRIMARY KEY (code, group_id),
+    KEY idx_group (group_id, code)
+);
+```
+
+自选此前整个存在浏览器 `localStorage`（`zx-stock:watchlist` / `zx-stock:watch-groups`），
+2026-10-14 起落库。理由与 `app_config` 同源：**两处真相迟早漂移**。
+旧的 localStorage 数据**未迁移**（用户决定从空库开始），两个 key 已不再读写。
+
+**读写方**：`server/src/server/watchlist.py`，
+接口 `GET /api/watchlist`、`POST /api/watchlist/items`、
+`DELETE /api/watchlist/items/{code}?group=`、`POST /api/watchlist/groups`。
+
+#### 为什么只有两张，没有「自选本体」表
+
+自选条目**自身不带任何数据**：
+
+- **`name` 不落库** —— 统一从 `/api/stock/list`（`stock_info` ∪ `index_info` 一条 SQL）
+  解析，见 `WatchlistPage` 的 dbNames 回填。落第二份只会重新制造名称漂移。
+  这不是洁癖：`indices.ts` 与 `WatchlistPage` 的历史注释都记着「自选里的票名字变成一串代码」
+  这次事故，成因正是 name 快照被冻在 localStorage 里。
+- **`addedAt` 无处可存** —— 全项目没有任何 UI 读它（`grep web/src` 只命中
+  `utils/watchlist.ts` 内部的写入与迁移逻辑）。已从 `WatchItem` 类型删除。
+
+于是「票还在但不属于任何组」这种孤儿状态在数据上**无法表示**：
+删完某个组的关联行，票自然消失，不需要额外判断「要不要连本体一起删」。
+这正是省掉第三张表的收益。
+
+#### 为什么不能用 `stock_info` 顶替
+
+自选里可以有 `stock_info` 里**根本没有行**的标的。实测（2026-10-14）：
+
+```
+index_info 的 6 个 code 在 stock_info 里查 name  → 全部 NULL
+stock_info 里名字含「指数」/「成指」的行数          → 0 行
+stock_info 的 code 前缀                            → SZ 2906 + SH 2319（清一色个股）
+```
+
+`0AMV` / `MOM` 都在 `index_info` 而不在 `stock_info`，且 `0AMV` **确实被加进过自选**
+（`WatchlistPage.tsx` 留着案底）。拿 `stock_info` 当条目表，这两行就加不进去。
+
+#### 三个易踩的点
+
+| 点 | 原因 |
+|---|---|
+| 主键是 `(code, group_id)` | 兼做幂等：重复加同一组走 `INSERT IGNORE` 返回 0，不报错也不插第二行 |
+| `created_at` / `added_at` 都是 `DATETIME(3)` | MySQL 的 `datetime` 不写小数秒只有**秒**精度，同一秒建的两个分组排序会跳 |
+| 列表顺序 = **首次**加入时间 | 一只票在 N 个组就有 N 个 `added_at`，取 MIN 才对。`watchlist.list_all` 不用 GROUP BY，直接 `ORDER BY added_at, code` 后在 Python 里「首次遇到即定序」，`code` 是并列时的确定性兜底 |
+
+`default`（「其他」）是唯一内置分组，由 `ensure_default_group()` 在**启动时**幂等补齐，
+`create_group` 不会覆盖它；`GET` 恒把它排在末尾，前端 `getAllGroups()` 是同一条规则的第二道保险。
+
+同名分组自动去重成「名称 (2)」这条规则已从前端 `createUserGroup` **挪到后端**
+（只有后端能看见全部分组，前端看到的可能还没加载完）。分组 id 也改由后端生成。
+
+前端 `web/src/utils/watchlist.ts` 是个内存 store，**所有导出保持同步签名不变**
+（只有 `createUserGroup` 变成 async），所以 `WatchlistPage` / `ChartHeader`
+的读取方式不用动。写入一律「乐观更新 + 失败回滚」，应用启动时 `initWatchlist()` 拉一次。
 
 ---
 
@@ -526,6 +619,18 @@ OHLC 24/24 吻合，`amount` 1.0000 吻合，`volume` 按 100 倍换算后吻合
 `trade_date` 统一取「周期**最后一个交易日**」——`close` 对应的那天，语义最自然，
 且与 pytdx 原生周/月/季/年线的返回日期一致。
 注意早期实现曾用 `MIN(trade_date)`（周期首个交易日），物化时必须统一改掉。
+
+⚠️ **正因取桶尾，物化必须「先删后插」，不能增量 upsert。**
+本周每多一个交易日，桶尾就变一次（周一 → 周二 → … → 周五），
+而主键是 `(code, period, trade_date)`，桶尾一换就成了新主键 ——
+upsert 会把每一版都留成独立行，一天一行、一周五行，
+接口于是返回同一周的五根假 K 线。
+`materialize_periods_on()` 因此先 `DELETE` 掉该周期的全部行，再从日线全量重建：
+1542 行的量级是毫秒级，换来「表里永远是当前桶集合」这条不用维护的保证。
+真相源是日线，删掉的每一行都会原样重建。
+
+> 2026-10-14 实测：插入同周下一根日线后，week 桶尾由 `2026-10-12` 挪到 `2026-10-13`，
+> 行数仍是 1150；再插入下周一那根才 +1 → 1151。
 
 #### 物化 SQL
 

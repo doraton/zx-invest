@@ -1,12 +1,21 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import MarketPage from './pages/MarketPage';
 import WatchlistPage from './pages/WatchlistPage';
 import PlaceholderPage from './pages/PlaceholderPage';
+import { initWatchlist } from './utils/watchlist';
 import './App.css';
 
 function App() {
+  // 自选自 2026-10-14 起存在后端（watch_group / watch_item），启动时拉一次。
+  // 拉回来之前各页面的自选列表是空的，initWatchlist 内部 notify 一次即可补上。
+  // 不 await：拉不到也不该挡住渲染，失败只在 console 里报错。
+  useEffect(() => {
+    void initWatchlist();
+  }, []);
+
   return (
     <BrowserRouter>
       <Layout>
