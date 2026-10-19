@@ -57,12 +57,12 @@
 ## 2. 系统架构
 
 ```
-                  Browser (Vite :8210，端口被占时 vite 自动顺延)
+                  Browser (Vite :3201，端口被占时 vite 自动顺延)
                   React + antd + klinecharts
                             │ HTTP
                             ▼
  ┌──────────────────────────────────────────────────────────────┐
- │ FastAPI (uvicorn :8310)                                       │
+ │ FastAPI (uvicorn :3301)                                       │
  │   ├─ /api/index/kline   → MySQL 查询                        │
  │   ├─ /api/stock/search  → MySQL LIKE 查询（ES 未接入）      │
  │   ├─ /api/admin/sync    → 手动触发                          │
@@ -483,7 +483,7 @@ K 线每根字段（11 个）：
 # 完整链路（推荐）
 .\.venv\Scripts\python.exe -W ignore tools\sync_stock.py SH.600570
 # 只要日线
-curl -X POST "http://127.0.0.1:8310/api/admin/sync?code=SZ.399001&days=30"
+curl -X POST "http://127.0.0.1:3301/api/admin/sync?code=SZ.399001&days=30"
 ```
 
 两个接口的当前形态（第一个已可用，不是"未就绪"）：
@@ -512,11 +512,11 @@ docker ps                       # 确认 mysql-8 在跑，映射 127.0.0.1:3306
 # 4. 后端（lifespan 自动建连接池 + 建表）
 cd server
 uv pip install aiomysql         # 首次
-.\.venv\Scripts\python.exe -W ignore -m uvicorn server.main:app --host 127.0.0.1 --port 8310 --app-dir src
+.\.venv\Scripts\python.exe -W ignore -m uvicorn server.main:app --host 127.0.0.1 --port 3301 --app-dir src
 
 # 5. 前端
 cd web && npm run dev
-# 浏览器打开 http://localhost:8210
+# 浏览器打开 http://localhost:3201
 ```
 
 **启动顺序**：docker（MySQL）→ 后端 → 前端。通达信客户端不必启动。
@@ -535,7 +535,7 @@ cd server
 .\.venv\Scripts\python.exe -W ignore tools\sync_kline.py --dry-run --days 30
 
 # 或通过 HTTP 触发
-curl -X POST "http://127.0.0.1:8310/api/admin/sync?code=sh000001&days=30"
+curl -X POST "http://127.0.0.1:3301/api/admin/sync?code=sh000001&days=30"
 ```
 
 `tools/sync_stock.py` 的日线来源默认 `auto`（先 pytdx，失败回退本地 vipdoc），

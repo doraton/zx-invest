@@ -5,19 +5,19 @@
  * 漏改的表现是「接口静默拿不到数据、图表空白、控制台无报错」——极难排查。
  * 现在统一从这里取。
  *
- * ⚠️ 取值是**空串**（同源相对路径），不是写死的 `localhost:8310`。
+ * ⚠️ 取值是**空串**（同源相对路径），不是写死的 `localhost:3301`。
  * 原因：这段 JS 是在**用户的浏览器里**执行的，`localhost` 指的是用户自己那台电脑，
- * 不是部署服务器。开发时前后端同机，`localhost:8310` 碰巧成立；一旦部署到服务器，
+ * 不是部署服务器。开发时前后端同机，`localhost:3301` 碰巧成立；一旦部署到服务器，
  * 浏览器就会把请求打到用户自己的电脑上——页面能开、图表空白、控制台只有连接失败。
  *
  * 现在的形态：
- *   - 本地开发：vite 把 `/api`、`/health` 代理到 127.0.0.1:8310（见 vite.config.ts）
+ *   - 本地开发：vite 把 `/api`、`/health` 代理到 127.0.0.1:3301（见 vite.config.ts）
  *   - 部署：nginx 同时提供静态文件和 `/api` 反代（生产与开发由不同工具做同一件事）
  * 两套环境共用这份相对路径的代码，不需要分别构建，也不会出现跨域。
  *
- * 开发时后端仍需在本机 8310 端口运行：
+ * 开发时后端仍需在本机 3301 端口运行：
  *   cd server; $env:ZX_MYSQL_DB='zx_invest'
- *   .\.venv\Scripts\python.exe -W ignore -m uvicorn server.main:app --host :: --port 8310
+ *   .\.venv\Scripts\python.exe -W ignore -m uvicorn server.main:app --host :: --port 3301
  * 注意 `--host ::`：本机前端 vite 绑的是 IPv6 回环，绑 127.0.0.1 会连不上。
  */
 export const API_BASE = '';

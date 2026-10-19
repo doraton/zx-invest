@@ -351,4 +351,4 @@ async def post_watchlist_group(payload: dict[str, Any]):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8310)
+    uvicorn.run(app, host="127.0.0.1", port=3301)

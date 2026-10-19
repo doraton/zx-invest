@@ -101,7 +101,7 @@ export default function MarketPage() {
           <div className="market-error">
             ⚠ {error}
             <Text type="secondary" className="market-error-hint">
-              请确认后端已在 8310 端口运行（需要 ZX_MYSQL_DB=zx_invest）。
+              请确认后端已在 3301 端口运行（需要 ZX_MYSQL_DB=zx_invest）。
             </Text>
           </div>
         )}

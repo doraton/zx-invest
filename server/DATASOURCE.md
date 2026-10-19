@@ -23,16 +23,16 @@ DataSource (抽象基类)
 
 ```bash
 # 查看当前K线（默认pytdx）
-curl "http://localhost:8310/api/index/kline?category=4&count=10"
+curl "http://localhost:3301/api/index/kline?category=4&count=10"
 
 # 切换到akshare
-curl "http://localhost:8310/api/index/kline?category=4&source=akshare"
+curl "http://localhost:3301/api/index/kline?category=4&source=akshare"
 
 # 切换到efinance
-curl "http://localhost:8310/api/index/kline?source=efinance"
+curl "http://localhost:3301/api/index/kline?source=efinance"
 
 # 查看所有可用数据源
-curl "http://localhost:8310/api/datasource/list"
+curl "http://localhost:3301/api/datasource/list"
 ```
 
 ## 代码层面使用
